@@ -172,3 +172,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# local
+.DS_Store
+.docs/
+tmp/
+old/
+logs
+*.env

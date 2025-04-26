@@ -1,0 +1,12 @@
+python-dotenv
+fastrtc[vad]>=0.0.23
+librosa>=0.11.0
+# for gTTS
+gTTS>=2.5.4
+av>=13.1.0
+# for SpeechRecognition-google
+SpeechRecognition==3.10.0
+# for vosk
+vosk>=0.3.44
+# for test
+sounddevice

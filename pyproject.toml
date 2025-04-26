@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastrtc_jp"
+version = "0.1.0"
+description = "A sample Python package for fast RTC (Japanese version)"
+authors = [
+    {name = "route250", email = "your.email@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastrtc[vad]>=0.0.23",
+    "librosa>=0.11.0",
+    "python-dotenv"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "sounddevice"
+]
+
+[tool.setuptools]
+packages = ["fastrtc_jp", "fastrtc_jp.text_to_speech", "fastrtc_jp.utils"]
+
+[project.urls]
+Homepage = "https://github.com/route250/fastrtc-jp"
