@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fastrtc_jp"
-version = "0.1.0"
+version = "0.1.1"
 description = "A module kit for Fast RTC in Japanese"
 authors = [
     {name = "route250", email = "89811136+route250@users.noreply.github.com"}
