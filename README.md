@@ -12,13 +12,12 @@ fastrtc用の日本語TTSとSTT追加キット（日本語音声合成・認識�
 主な機能：
 - 日本語に特化した音声合成モデル（Voicevox、gTTS）
 - 日本語に対応した音声認識モデル（Vosk、Google Speech Recognition）
-- シンプルで使いやすいAPI
-- fastrtcとのシームレスな統合
+
+fastrtcの詳細な使い方については、[fastrtc公式ドキュメント](https://fastrtc.org/)を参照してください。
 
 ## システム要件
 
 - Python 3.11以上
-- fastrtc（インストール方法は[fastrtc公式サイト](https://fastrtc.org/)を参照）
 - 各モデルの追加要件は以下の「インストール」セクションを参照
 
 ## インストール
@@ -42,13 +41,14 @@ pip install fastrtc-jp
 
 #### 音声合成（TTS）
 
+**VoicevoxTTSModelを使用する場合**:
+Voicevoxエンジンが必要です。[Voicevox公式](https://voicevox.hiroshiba.jp/)を参照し、APIでアクセスできる環境を準備してください。
+
 **GTTSModelを使用する場合**:
 ```bash
 pip install fastrtc-jp[gtts]
 ```
-
-**VoicevoxTTSModelを使用する場合**:
-Voicevoxエンジンが必要です。[Voicevox公式サイト](https://voicevox.hiroshiba.jp/)からダウンロードし、ローカルで実行するか、APIサーバーにアクセスできる環境を準備してください。
+インターネット接続が必要です。
 
 #### 音声認識（STT）
 
@@ -56,7 +56,8 @@ Voicevoxエンジンが必要です。[Voicevox公式サイト](https://voicevox
 ```bash
 pip install fastrtc-jp[vosk]
 ```
-さらに、日本語モデルをダウンロードする必要があります。詳細は[Voskの公式ドキュメント](https://alphacephei.com/vosk/models)を参照してください。
+詳細は[Voskの公式](https://alphacephei.com/vosk)を参照してください。
+一応、日本語のモデルを自動でダウンロードするようにしています。
 
 **GoogleSTTを使用する場合**:
 ```bash
@@ -268,29 +269,6 @@ Google Text-to-Speechを使用した音声合成モデルです。
 ### GoogleSTT
 
 Googleの音声認識エンジンを使用します。インターネット接続が必要です。
-
-## トラブルシューティング
-
-### Voicevoxとの接続エラー
-
-1. Voicevoxエンジンが正常に起動しているか確認してください
-2. デフォルトでは`localhost:50021`に接続します。別のアドレスを使用する場合は初期化時に指定してください
-3. ファイアウォール設定を確認してください
-
-### 音声認識の精度が低い場合
-
-1. VoskSTTを使用している場合、より大きなモデルを試してください
-2. GoogleSTTの場合、安定したインターネット接続があることを確認してください
-3. ノイズの少ない環境で録音してください
-
-### インストールエラー
-
-依存関係のインストールに問題がある場合は、以下を試してください：
-
-```bash
-pip install --upgrade pip
-pip install --upgrade setuptools wheel
-```
 
 ## ライセンス
 
