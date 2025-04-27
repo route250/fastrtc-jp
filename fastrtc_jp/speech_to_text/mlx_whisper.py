@@ -35,7 +35,6 @@ from fastrtc_jp.speech_to_text.util import resample_audio
 
     # model_size = 'mlx-community/whisper-large-v3-mlx'
 
-
 class MlxWhisper(STTModel):
     """fastrtcのSTTModelを実装したクラス"""
     def __init__(self):

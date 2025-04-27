@@ -1,17 +1,18 @@
 import asyncio
 from typing import Any, AsyncGenerator, Generator, Literal, Protocol
+from dataclasses import dataclass
 from io import BytesIO
-
 import numpy as np
 from numpy.typing import NDArray
-
-from dataclasses import dataclass
 from fastrtc.text_to_speech.tts import TTSOptions, TTSModel
+from fastrtc.utils import audio_to_float32
 from fastrtc_jp.text_to_speech.util import split_to_talk_segments
+from fastrtc_jp.speech_to_text.util import resample_audio, time_stretch1
 from gtts import gTTS
 import av
 from av.container import InputContainer
-import librosa
+from av import logging as av_logging
+av_logging.set_level(av_logging.FATAL)  # Set logging level to FATAL to suppress warnings
 
 def mp3_to_pcm( mp3_data: bytes) -> tuple[int, NDArray[np.float32]]:
     # MP3をPCMに変換
@@ -19,27 +20,17 @@ def mp3_to_pcm( mp3_data: bytes) -> tuple[int, NDArray[np.float32]]:
     audio = container.streams.audio[0]
     sample_rate = audio.rate
     
-    samples = []
+    samples:list[NDArray] = []
     for frame in container.decode(audio=0):
         samples.append(frame.to_ndarray().flatten())
     
-    pcm_data = np.concatenate(samples)
+    pcm_data:NDArray[np.float32] = audio_to_float32(np.concatenate(samples))
     first_non_silent = np.nonzero(pcm_data)[0]
     if len(first_non_silent) > 0:
         pcm_data2 = pcm_data[first_non_silent[0]:]
     else:
         pcm_data2 = pcm_data
-    pcm_data3 = time_stretch1(pcm_data2, sample_rate, 1.3)
-    
-    return sample_rate, pcm_data3
-
-def time_stretch1(audio: NDArray[np.float32], sample_rate:int, rate: float) -> NDArray[np.float32]:
-    return librosa.effects.time_stretch(audio, rate=rate)
-
-def time_stretch2(audio: NDArray[np.float32], sample_rate:int, rate: float) -> NDArray[np.float32]:
-    x = librosa.effects.pitch_shift(audio, sr=sample_rate, n_steps=-8)
-    b = sample_rate // rate
-    return librosa.resample(x, orig_sr=sample_rate, target_sr=b)
+    return sample_rate, pcm_data2
 
 @dataclass
 class GTTSOptions(TTSOptions):
@@ -50,15 +41,22 @@ class GTTSOptions(TTSOptions):
 
 class GTTSModel(TTSModel):
     def __init__(self):
-        self._sample_rate = 24000  # gTTSのデフォルトサンプリングレート
+        self._sample_rate = 24000
 
     def tts(self, text: str, options: GTTSOptions | None = None) -> tuple[int, NDArray[np.float32]]:
         options = options or GTTSOptions()
+        # tts実行
         tts = gTTS(text=text, lang=options.lang, tld=options.tld)
+        # mp3からpcmに変換
         mp3_data = BytesIO()
         tts.write_to_fp(mp3_data)
         mp3_data.seek(0)
-        return mp3_to_pcm(mp3_data.read())
+        sr,audio = mp3_to_pcm(mp3_data.read())
+        # 速度調整
+        audio = time_stretch1(audio, sr, round( 1.3 * options.speed, 1))
+        # サンプリングレート変換
+        audio = resample_audio( sr, audio, self._sample_rate )
+        return (self._sample_rate, audio)
 
     async def stream_tts(self, text: str, options: GTTSOptions | None = None) -> AsyncGenerator[tuple[int, NDArray[np.float32]], None]:
         options = options or GTTSOptions()
@@ -75,5 +73,3 @@ class GTTSModel(TTSModel):
                 yield loop.run_until_complete(iterator.__anext__())
             except StopAsyncIteration:
                 break
-
-

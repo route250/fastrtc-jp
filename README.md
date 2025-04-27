@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://img.shields.io/pypi/v/fastrtc-jp.svg)](https://pypi.org/project/fastrtc-jp/)
 
 fastrtc用の日本語TTSとSTT追加キット（日本語音声合成・認識モジュール）
 
@@ -15,9 +16,21 @@ fastrtc用の日本語TTSとSTT追加キット（日本語音声合成・認識�
 
 fastrtcの詳細な使い方については、[fastrtc公式ドキュメント](https://fastrtc.org/)を参照してください。
 
+## 提供モデル一覧
+
+| クラス | 説明 | 追加パッケージ | 特徴 |
+|-------|------|--------------|------|
+| VoicevoxTTSModel | Voicevoxのapiで音声合成するクラス | - | 高品質な日本語音声、多様な話者、感情表現が可能 |
+| StyleBertVits2 | StyleBertVits2で音声合成するクラス | style-bert-vits2, pyopenjtalk | 高品質な音声合成が可能、事前学習済みモデルに対応 |
+| GTTSModel | Google Text-to-Speechで音声合成するクラス | gtts | インターネット接続が必要、自然な発話 |
+| VoskSTT | Voskエンジンで音声認識するクラス | vosk | オフライン動作可能、軽量 |
+| MlxWhisper | mlx-whisperで音声認識するクラス | mlx-whisper | 高精度な音声認識、Apple Silicon最適化 |
+| GoogleSTT | SpeechRecognizerのGoogleエンジンで音声認識するクラス | speech_recognizer | 高精度、インターネット接続が必要 |
+
 ## システム要件
 
-- Python 3.11以上
+- Python 3.12以上
+- ubuntu 24.04 及び MacOS 15.4 にて動作確認
 - 各モデルの追加要件は以下の「インストール」セクションを参照
 
 ## インストール
@@ -26,11 +39,10 @@ fastrtcの詳細な使い方については、[fastrtc公式ドキュメント](
 
 ```bash
 # 仮想環境の作成と有効化（オプション）
-python -m venv fastrtc-env
-source fastrtc-env/bin/activate  # Linuxの場合
-# または
-.\fastrtc-env\Scripts\activate  # Windowsの場合
-
+python -m venv .venv
+source .venv/bin/activate
+# pipをアップデート
+.venv/bin/python3 -m pip install -U pip setuptools
 # 基本パッケージのインストール
 pip install fastrtc-jp
 ```
@@ -42,37 +54,60 @@ pip install fastrtc-jp
 #### 音声合成（TTS）
 
 **VoicevoxTTSModelを使用する場合**:
+
 Voicevoxエンジンが必要です。[Voicevox公式](https://voicevox.hiroshiba.jp/)を参照し、APIでアクセスできる環境を準備してください。
 
+```text:config.env
+VOICEVOX_HOSTLIST=http://127.0.0.1:50021
+```
+
+**StyleBertVits2を使用する場合**:
+
+詳細は[style-bert-vits2リポジトリ](https://github.com/litagin02/Style-Bert-VITS2)を参照して下さい。
+標準音声モデルもしくは、別途、音声モデルを使用することができます。
+
+```bash
+pip install fastrtc-jp[sbv2]
+```
+
 **GTTSModelを使用する場合**:
+
+詳細は[gTTSリポジトリ](https://github.com/pndurette/gTTS)を参照して下さい。
+gTTSはgoogleのapiを使用しますので、インターネット接続が必要です。
+
 ```bash
 pip install fastrtc-jp[gtts]
 ```
-インターネット接続が必要です。
 
 #### 音声認識（STT）
 
 **VoskSTTを使用する場合**:
-```bash
-pip install fastrtc-jp[vosk]
-```
+
 詳細は[Voskの公式](https://alphacephei.com/vosk)を参照してください。
 一応、日本語のモデルを自動でダウンロードするようにしています。
 
+```bash
+pip install fastrtc-jp[vosk]
+```
+
+**mlx-whisperを使用する場合**:
+
+mlx-whisperは、MacOS用です。
+詳細は、[MLX Examplesリポジトリ](https://github.com/ml-explore/mlx-examples)を参照してください。
+mlx-communityから、mlx対応のモデルを自動的にダウンロードするようにしています。
+
+```bash
+pip install fastrtc-jp[mlx]
+```
+
 **GoogleSTTを使用する場合**:
+
+詳細は[speech-recognitionリポジトリ]()を参照して下さい。
+v3.10でgoogleのapiを使用するので、インターネット接続が必要です。
+
 ```bash
 pip install fastrtc-jp[sr]
 ```
-インターネット接続が必要です。
-
-## 提供モデル一覧
-
-| クラス | 説明 | 追加パッケージ | 特徴 |
-|-------|------|--------------|------|
-| VoicevoxTTSModel | Voicevoxのapiで音声合成するクラス | - | 高品質な日本語音声、多様な話者、感情表現が可能 |
-| GTTSModel | Google Text-to-Speechで音声合成するクラス | gtts | インターネット接続が必要、自然な発話 |
-| VoskSTT | Voskエンジンで音声認識するクラス | vosk | オフライン動作可能、軽量 |
-| GoogleSTT | SpeechRecognizerのGoogleエンジンで音声認識するクラス | sr | 高精度、インターネット接続が必要 |
 
 ## 使用例
 
@@ -241,49 +276,63 @@ if __name__ == "__main__":
 ### VoicevoxTTSModel
 
 [VOICEVOX](https://voicevox.hiroshiba.jp/)は、無料で使える高品質な日本語音声合成エンジンです。
-
-**初期化オプション:**
-- `host`: Voicevox APIのホスト（デフォルト: "localhost"）
-- `port`: Voicevox APIのポート（デフォルト: 50021）
+VOICEVOXと音声モデルの使用条件については公式ドキュメントなどで確認して下さい。
+環境変数VOICEVOX_HOSTLISTにVOICEVOXサーバのアドレスとポートを設定して下さい。
+.envファイルもしくはconfig.envファイルに以下のように記述して下さい。
+記述がない場合は下記のデフォルトが設定されます。
 
 **VoicevoxTTSOptions:**
-- `speaker`: 話者ID（整数）
+- `speaker`: 話者ID（整数）VOICEVOXのドキュメントなどでIDを探して下さい。
 - `speedScale`: 話速スケール（デフォルト: 1.0）
-- その他のパラメータについては[VOICEVOX APIリファレンス](https://voicevox.github.io/voicevox_engine/api/)を参照
+
+### StyleBertVits2
+
+[Style-Bert-Vits2](https://github.com/litagin02/Style-Bert-VITS2)は、高品質な音声合成が可能なTTSモデルです。事前学習済みモデルを使って、自然な日本語音声を生成できます。
+Style-Bert-Vits2と音声モデルの使用条件については公式ドキュメントなどで確認して下さい。
+
+**StyleBertVits2Options:**
+- `model_path`: モデルファイルのパス
+- `config_path`: 設定ファイルのパス
+- `style_vec_path`: スタイルベクトルファイルのパス
+- `device`: 使用するデバイス（デフォルト: "cpu"）
+
+このモジュールでは、事前学習済みモデルを使用することが可能です。
+
+```python:参考
+StyleBertVits2Options( device="cpu",
+    model_file = "model/jvnv-M1-jp/jvnv-M1-jp_e158_s14000.safetensors",
+    config_file = "model/jvnv-M1-jp/config.json",
+    style_file = "model/jvnv-M1-jp/style_vectors.npy",
+)
+```
 
 ### GTTSModel
 
 Google Text-to-Speechを使用した音声合成モデルです。
 
 **GTTSOptions:**
-- `lang`: 言語コード（デフォルト: "ja"）
-- `slow`: ゆっくり話すかどうか（デフォルト: False）
+- `speed`: 話す速度(デフォルト1.0)
 
 ### VoskSTT
 
 [Vosk](https://alphacephei.com/vosk/)は、オフラインで動作する音声認識エンジンです。
 
-**初期化オプション:**
-- `model_path`: Voskモデルのパス
+現在は、'vosk-model-ja-0.22'に固定です。
 
 ### GoogleSTT
 
 Googleの音声認識エンジンを使用します。インターネット接続が必要です。
 
+
+### MlxWhisper
+
+[mlx-whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper)はApple Silicon向けに最適化されたWhisperモデルの実装です。
+
+現在は、'mlx-community/whisper-medium-mlx-q4'に固定です。
+
 ## ライセンス
 
 このプロジェクトはMITライセンスの下で公開されています。詳細は[LICENSE](LICENSE)ファイルを参照してください。
-
-## 貢献
-
-バグレポート、機能リクエスト、プルリクエストなど、あらゆる形での貢献を歓迎します。
-
-## 謝辞
-
-- [fastrtc](https://fastrtc.org/)チーム
-- [VOICEVOX](https://voicevox.hiroshiba.jp/)プロジェクト
-- [Vosk](https://alphacephei.com/vosk/)プロジェクト
-- その他、このプロジェクトに貢献してくれた全ての方々
 
 ---
 
