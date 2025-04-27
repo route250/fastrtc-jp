@@ -14,6 +14,8 @@ def split_to_talk_segments(text:str) -> list[str]:
     音声合成を行う単位に分割する
     基本的に行単位に分割し、先頭だけは句読点単位で分割する
     """
+    if text is None or len(text)==0:
+        return []
     sz = len(text)
     st = 0
     segments = []

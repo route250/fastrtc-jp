@@ -1,8 +1,8 @@
 import sys,os,asyncio
-sys.path.insert(0,'./')
+#sys.path.insert(0,'./')
 from dotenv import load_dotenv
 from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSModel
-from tests.utils import play_audio
+from utils import play_audio
 
 def test():
     if os.path.exists('config.env'):
