@@ -43,6 +43,7 @@ def time_stretch2(audio: NDArray[np.float32], sample_rate:int, rate: float) -> N
 
 @dataclass
 class GTTSOptions(TTSOptions):
+    split:bool = False
     lang: str = "ja"       # 言語
     tld: str = "jp"        # トップレベルドメイン
     speed: float = 1.0     # 速度（現在のgTTSは未対応だが将来のために）
@@ -61,7 +62,7 @@ class GTTSModel(TTSModel):
 
     async def stream_tts(self, text: str, options: GTTSOptions | None = None) -> AsyncGenerator[tuple[int, NDArray[np.float32]], None]:
         options = options or GTTSOptions()
-        segments = split_to_talk_segments(text)
+        segments = split_to_talk_segments(text) if options.split else [text]
         for seg in segments:
             sample_rate, audio = self.tts(seg, options)
             yield sample_rate, audio

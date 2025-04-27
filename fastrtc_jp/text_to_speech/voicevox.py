@@ -19,6 +19,7 @@ _EMPTY_DATA = np.zeros((1,), dtype=np.float32)
 
 @dataclass
 class VoicevoxTTSOptions(TTSOptions):
+    split:bool = False
     url: str|None = None
     speaker: int = 8 # ひびき
     speedScale: float = 1.1
@@ -92,7 +93,7 @@ class VoicevoxTTSModel(TTSModel):
         options = options or VoicevoxTTSOptions()
         if options.url is None:
             options.url = await self._aget_voicevox_url()
-        segments = split_to_talk_segments(text)
+        segments = split_to_talk_segments(text) if options.split else [text]
         for seg in segments:
             res = await voicevox_api(seg, options)
             if isinstance(res, tuple) and res[0]>0:

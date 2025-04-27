@@ -34,6 +34,10 @@ gtts = [
 sr = [
     "SpeechRecognition==3.10.0"
 ]
+sbv2 = [
+    "style-bert-vits2>=2.5.0",
+    "pyopenjtalk>=0.4.1"
+]
 dev = [
     "pytest>=7.0.0",
     "sounddevice"

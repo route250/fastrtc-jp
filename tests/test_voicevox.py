@@ -1,5 +1,5 @@
 import sys,os,asyncio
-#sys.path.insert(0,'./')
+sys.path.insert(0,'./')
 from dotenv import load_dotenv
 from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSModel
 from utils import play_audio

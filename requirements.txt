@@ -5,8 +5,14 @@ librosa>=0.11.0
 gTTS>=2.5.4
 av>=13.1.0
 # for SpeechRecognition-google
+# 3.10.0以降は、だめ
 SpeechRecognition==3.10.0
-# for vosk
+# for vosk macは0.3.44まで
 vosk==0.3.44
+# for mlx_whisper
+mlx-whisper>=0.4.2
+# style-bert-vits2
+style-bert-vits2>=2.5.0
+pyopenjtalk>=0.4.1 # openjtalkを最新にしないと、エラーになる
 # for test
 sounddevice
