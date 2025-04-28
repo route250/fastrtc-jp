@@ -11,8 +11,8 @@ fastrtc用の日本語TTSとSTT追加キット（日本語音声合成・認識�
 [fastrtc](https://fastrtc.org/)は高性能なリアルタイム通信フレームワークですが、現状では日本語の音声合成(TTS)および音声認識(STT)機能が十分に対応していません。このプロジェクトは、fastrtcに日本語対応の音声処理機能を追加するための拡張パッケージです。
 
 主な機能：
-- 日本語に特化した音声合成モデル（Voicevox、gTTS）
-- 日本語に対応した音声認識モデル（Vosk、Google Speech Recognition）
+- 日本語に特化した音声合成モデル（Voicevox、StyleBertVits2, gTTS）
+- 日本語に対応した音声認識モデル（MlxWhisper, Vosk、Google Speech Recognition）
 
 fastrtcの詳細な使い方については、[fastrtc公式ドキュメント](https://fastrtc.org/)を参照してください。
 
@@ -53,24 +53,56 @@ pip install fastrtc-jp
 
 #### 音声合成（TTS）
 
-**VoicevoxTTSModelを使用する場合**:
+##### VOICEVOXを使用する場合:
 
-Voicevoxエンジンが必要です。[Voicevox公式](https://voicevox.hiroshiba.jp/)を参照し、APIでアクセスできる環境を準備してください。
+[VOICEVOX](https://voicevox.hiroshiba.jp/)は、無料で使える高品質な日本語音声合成エンジンです。
+VOICEVOXと音声モデルの使用条件については公式ドキュメントなどで確認して下さい。
+[VOICEVOX公式](https://voicevox.hiroshiba.jp/)を参照し、APIでアクセスできる環境を準備してください。
+
+- VoicevoxTTSModelクラス
+
+環境変数VOICEVOX_HOSTLISTにVOICEVOXサーバのアドレスとポートを設定して下さい。
+.envファイルもしくはconfig.envファイルに以下のように記述して下さい。
+記述がない場合は下記のデフォルトが設定されます。
 
 ```text:config.env
 VOICEVOX_HOSTLIST=http://127.0.0.1:50021
 ```
 
-**StyleBertVits2を使用する場合**:
+- VoicevoxTTSOptionsクラス
+  - `speaker`: 話者ID（整数）VOICEVOXのドキュメントなどでIDを探して下さい。
+  - `speedScale`: 話速スケール（デフォルト: 1.0）
 
+##### StyleBertVits2を使用する場合:
+
+[Style-Bert-Vits2](https://github.com/litagin02/Style-Bert-VITS2)は、高品質な音声合成が可能なTTSモデルです。事前学習済みモデルを使って、自然な日本語音声を生成できます。
+Style-Bert-Vits2と音声モデルの使用条件については公式ドキュメントなどで確認して下さい。
 詳細は[style-bert-vits2リポジトリ](https://github.com/litagin02/Style-Bert-VITS2)を参照して下さい。
-標準音声モデルもしくは、別途、音声モデルを使用することができます。
 
 ```bash
 pip install fastrtc-jp[sbv2]
 ```
 
-**GTTSModelを使用する場合**:
+- StyleBertVits2クラス
+
+標準音声モデルもしくは、別途、音声モデルを使用することができます。
+
+- StyleBertVits2Optionsクラス
+
+  - `model_path`: モデルファイルのパス
+  - `config_path`: 設定ファイルのパス
+  - `style_vec_path`: スタイルベクトルファイルのパス
+  - `device`: 使用するデバイス（デフォルト: "cpu"）
+
+```python:参考
+StyleBertVits2Options( device="cpu",
+    model_file = "model/jvnv-M1-jp/jvnv-M1-jp_e158_s14000.safetensors",
+    config_file = "model/jvnv-M1-jp/config.json",
+    style_file = "model/jvnv-M1-jp/style_vectors.npy",
+)
+```
+
+##### GTTSModelを使用する場合:
 
 詳細は[gTTSリポジトリ](https://github.com/pndurette/gTTS)を参照して下さい。
 gTTSはgoogleのapiを使用しますので、インターネット接続が必要です。
@@ -79,28 +111,45 @@ gTTSはgoogleのapiを使用しますので、インターネット接続が必�
 pip install fastrtc-jp[gtts]
 ```
 
+- GTTSModelクラス
+
+Google Text-to-Speechを使用した音声合成モデルです。
+
+- GTTSOptionsクラス
+
+  - `speed`: 話す速度(デフォルト1.0)
+
+
 #### 音声認識（STT）
 
-**VoskSTTを使用する場合**:
+##### VoskSTTを使用する場合:
 
+[Vosk](https://alphacephei.com/vosk/)は、オフラインで動作する音声認識エンジンです。
 詳細は[Voskの公式](https://alphacephei.com/vosk)を参照してください。
 一応、日本語のモデルを自動でダウンロードするようにしています。
 
 ```bash
 pip install fastrtc-jp[vosk]
 ```
+- VoskSTTクラス
 
-**mlx-whisperを使用する場合**:
+現在は、'vosk-model-ja-0.22'に固定です。
 
-mlx-whisperは、MacOS用です。
-詳細は、[MLX Examplesリポジトリ](https://github.com/ml-explore/mlx-examples)を参照してください。
-mlx-communityから、mlx対応のモデルを自動的にダウンロードするようにしています。
+##### mlx-whisperを使用する場合:
+
+[mlx-whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper)はApple Silicon向けに最適化されたWhisperモデルの実装です。
+詳細は、[MLX Examplesリポジトリ](https://github.com/ml-explore/mlx-examples/tree/main/whisper)を参照してください。
 
 ```bash
 pip install fastrtc-jp[mlx]
 ```
 
-**GoogleSTTを使用する場合**:
+- MlxWhisperクラス
+
+現在は、'mlx-community/whisper-medium-mlx-q4'に固定です。
+mlx-communityから、mlx対応のモデルを自動的にダウンロードするようにしています。
+
+##### GoogleSTTを使用する場合:
 
 詳細は[speech-recognitionリポジトリ]()を参照して下さい。
 v3.10でgoogleのapiを使用するので、インターネット接続が必要です。
@@ -108,6 +157,10 @@ v3.10でgoogleのapiを使用するので、インターネット接続が必要
 ```bash
 pip install fastrtc-jp[sr]
 ```
+
+- GoogleSTTクラス
+
+Googleの音声認識エンジンを使用します。インターネット接続が必要です。
 
 ## 使用例
 
@@ -270,65 +323,6 @@ def example_echoback():
 if __name__ == "__main__":
     example_echoback()
 ```
-
-## モデル詳細
-
-### VoicevoxTTSModel
-
-[VOICEVOX](https://voicevox.hiroshiba.jp/)は、無料で使える高品質な日本語音声合成エンジンです。
-VOICEVOXと音声モデルの使用条件については公式ドキュメントなどで確認して下さい。
-環境変数VOICEVOX_HOSTLISTにVOICEVOXサーバのアドレスとポートを設定して下さい。
-.envファイルもしくはconfig.envファイルに以下のように記述して下さい。
-記述がない場合は下記のデフォルトが設定されます。
-
-**VoicevoxTTSOptions:**
-- `speaker`: 話者ID（整数）VOICEVOXのドキュメントなどでIDを探して下さい。
-- `speedScale`: 話速スケール（デフォルト: 1.0）
-
-### StyleBertVits2
-
-[Style-Bert-Vits2](https://github.com/litagin02/Style-Bert-VITS2)は、高品質な音声合成が可能なTTSモデルです。事前学習済みモデルを使って、自然な日本語音声を生成できます。
-Style-Bert-Vits2と音声モデルの使用条件については公式ドキュメントなどで確認して下さい。
-
-**StyleBertVits2Options:**
-- `model_path`: モデルファイルのパス
-- `config_path`: 設定ファイルのパス
-- `style_vec_path`: スタイルベクトルファイルのパス
-- `device`: 使用するデバイス（デフォルト: "cpu"）
-
-このモジュールでは、事前学習済みモデルを使用することが可能です。
-
-```python:参考
-StyleBertVits2Options( device="cpu",
-    model_file = "model/jvnv-M1-jp/jvnv-M1-jp_e158_s14000.safetensors",
-    config_file = "model/jvnv-M1-jp/config.json",
-    style_file = "model/jvnv-M1-jp/style_vectors.npy",
-)
-```
-
-### GTTSModel
-
-Google Text-to-Speechを使用した音声合成モデルです。
-
-**GTTSOptions:**
-- `speed`: 話す速度(デフォルト1.0)
-
-### VoskSTT
-
-[Vosk](https://alphacephei.com/vosk/)は、オフラインで動作する音声認識エンジンです。
-
-現在は、'vosk-model-ja-0.22'に固定です。
-
-### GoogleSTT
-
-Googleの音声認識エンジンを使用します。インターネット接続が必要です。
-
-
-### MlxWhisper
-
-[mlx-whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper)はApple Silicon向けに最適化されたWhisperモデルの実装です。
-
-現在は、'mlx-community/whisper-medium-mlx-q4'に固定です。
 
 ## ライセンス
 
