@@ -9,6 +9,7 @@ import mlx_whisper
 from fastrtc.speech_to_text.stt_ import STTModel
 from fastrtc.utils import audio_to_float32, audio_to_int16
 from fastrtc_jp.speech_to_text.util import resample_audio
+from fastrtc_jp.utils.hf_util import download_hf_hub
 
     # model_size = 'mlx-community/whisper-tiny-mlx'
     # model_size = 'mlx-community/whisper-tiny-mlx-fp32'
@@ -34,11 +35,13 @@ from fastrtc_jp.speech_to_text.util import resample_audio
     # model_size = 'mlx-community/whisper-medium-mlx-8bit' # 865M
 
     # model_size = 'mlx-community/whisper-large-v3-mlx'
+    # mlx-community/whisper-large-v3-turbo # 1.6GB
 
 class MlxWhisper(STTModel):
     """fastrtcのSTTModelを実装したクラス"""
-    def __init__(self):
-        self.model = 'mlx-community/whisper-medium-mlx-q4'
+    def __init__(self,*,path_or_hf_repo:str|None=None,**kwargs:Any):
+        self.path_or_hf_repo = path_or_hf_repo or 'mlx-community/whisper-medium-mlx-q4'
+        self.model_path = download_hf_hub( repo_id=self.path_or_hf_repo )
 
     # def load_model(self):
     #     pass
@@ -54,7 +57,7 @@ class MlxWhisper(STTModel):
         audio_mono = resample_audio(sample_rate, audio_mono, 16000)
         transcribe_res = mlx_whisper.transcribe( audio_mono,no_speech_threshold=0.01,
                             language=None, word_timestamps=False,
-                            fp16=False, path_or_hf_repo=self.model)
+                            fp16=False, path_or_hf_repo=self.model_path)
         text = transcribe_res.get('text', '')
         print(f"stt: {text}")
         if isinstance(text,str):
