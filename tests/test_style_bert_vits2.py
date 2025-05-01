@@ -5,8 +5,16 @@ from dotenv import load_dotenv
 from fastrtc_jp.text_to_speech.style_bert_vits2 import StyleBertVits2,StyleBertVits2Options
 from utils import play_audio
 
-def test():
+def test_buildin_model(model:str|None=None):
+    tts = StyleBertVits2()
+    text = f"こんにちは、{model}です。今日も良い天気ですね。"
+    options:StyleBertVits2Options|None = StyleBertVits2Options(model=model) if model else None
+    print(f"test model:{model}")
+    for sample_rate,audio in tts.stream_tts_sync(text,options=options):
+        print(f"  audio: sr:{sample_rate} {audio.shape} {audio.dtype}")
+        play_audio(audio,sample_rate)
 
+def test_local_model():
     # https://github.com/litagin02/Style-Bert-VITS2/blob/master/library.ipynb
     # BERTモデルをロード（ローカルに手動でダウンロードする必要はありません）
     # model_assetsディレクトリにダウンロードされます
@@ -18,12 +26,21 @@ def test():
     config_file = "jvnv-M1-jp/config.json"
     style_file = "jvnv-M1-jp/style_vectors.npy"
 
-    option:StyleBertVits2Options = StyleBertVits2Options( device="cpu",
+    options:StyleBertVits2Options = StyleBertVits2Options( device="cpu",
         model_path= assets_root / model_file,
         config_path=assets_root / config_file,
         style_vec_path=assets_root / style_file,
     )
     tts = StyleBertVits2()
+    text = "こんにちは、今日も良い天気ですね。"
+    for sample_rate,audio in tts.stream_tts_sync(text,options=options):
+        print(f"  audio: sr:{sample_rate} {audio.shape} {audio.dtype}")
+        play_audio(audio,sample_rate)
+
+def test():
+
+    tts = StyleBertVits2()
+    option=None
     text = "こんにちは、今日も良い天気ですね。"
 
     print("test stream_tts")
@@ -46,4 +63,12 @@ def test():
     return audio
 
 if __name__ == "__main__":
+    test_buildin_model('rinne')
+    test_buildin_model('girl')
+    #download_jvnv_F1_jp('tsukuyomi-chan')
+    test_buildin_model('jvnv-F1-jp')
+    test_buildin_model('jvnv-F2-jp')
+    test_buildin_model('jvnv-M1-jp')
+    test_buildin_model('jvnv-M2-jp')
+    test_buildin_model()
     test()
