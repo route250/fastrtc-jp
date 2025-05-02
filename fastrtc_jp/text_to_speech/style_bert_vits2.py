@@ -134,6 +134,36 @@ SBV2_MODELS = {
             'path': 'style_vectors.npy'
             },
         'language': 'jp',
+    },
+    'AbeShinzo': {
+        'model':{
+            'repo_id': 'AbeShinzo0708/AbeShinzo_Style_Bert_VITS2',
+            'path': 'AbeShinzo20240210_e300_s43800.safetensors'
+            },
+        'config': {
+            'repo_id': 'AbeShinzo0708/AbeShinzo_Style_Bert_VITS2',
+            'path': 'config.json'
+            },
+        'style_vec': {
+            'repo_id': 'AbeShinzo0708/AbeShinzo_Style_Bert_VITS2',
+            'path': 'style_vectors.npy'
+            },
+        'language': 'jp',
+    },
+    'sakura-miko': {
+        'model':{
+            'repo_id': 'Lycoris53/style-bert-vits2-sakura-miko',
+            'path': 'sakuramiko_e89_s23000.safetensors'
+            },
+        'config': {
+            'repo_id': 'Lycoris53/style-bert-vits2-sakura-miko',
+            'path': 'config.json'
+            },
+        'style_vec': {
+            'repo_id': 'Lycoris53/style-bert-vits2-sakura-miko',
+            'path': 'style_vectors.npy'
+            },
+        'language': 'jp',
     }
 }
 

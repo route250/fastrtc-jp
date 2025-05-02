@@ -65,6 +65,8 @@ def test():
 if __name__ == "__main__":
     test_buildin_model('rinne')
     test_buildin_model('girl')
+    test_buildin_model('AbeShinzo')
+    test_buildin_model('sakura-miko')
     #download_jvnv_F1_jp('tsukuyomi-chan')
     test_buildin_model('jvnv-F1-jp')
     test_buildin_model('jvnv-F2-jp')
