@@ -1,7 +1,7 @@
 import sys,os,asyncio
 sys.path.insert(0,'./')
 from dotenv import load_dotenv
-from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSModel
+from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSOptions, VoicevoxTTSModel
 from utils import play_audio
 
 def test():
@@ -12,6 +12,18 @@ def test():
     hostlist:str|None = os.getenv('VOICEVOX_HOSTLIST')
     tts = VoicevoxTTSModel(hostlist)
     text = "こんにちは、今日も良い天気ですね。"
+
+    opt:VoicevoxTTSOptions = VoicevoxTTSOptions(speaker_id=8)
+    asyncio.run( tts.update_options(opt) )
+    print(f"speaker_id: {opt.speaker_id}")
+    print(f"speaker_name: {opt.speaker_name}")
+    print(f"speaker_style: {opt.speaker_style}")
+
+    opt:VoicevoxTTSOptions = VoicevoxTTSOptions(speaker_name='春日部つむぎ')
+    asyncio.run( tts.update_options(opt) )
+    print(f"speaker_id: {opt.speaker_id}")
+    print(f"speaker_name: {opt.speaker_name}")
+    print(f"speaker_style: {opt.speaker_style}")
 
     print("test stream_tts")
     async def test_async():

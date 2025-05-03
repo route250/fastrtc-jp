@@ -14,7 +14,7 @@ voicevoxで音声合成するだけのサンプル
 
 tts_model = VoicevoxTTSModel()
 voicevox_opt=VoicevoxTTSOptions(
-    speaker=8, # つむぎ
+    speaker_id=8, # つむぎ
     speedScale=1.0,
 )
 

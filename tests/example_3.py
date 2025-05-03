@@ -21,7 +21,7 @@ stt_model = GoogleSTT()
 
 tts_model = VoicevoxTTSModel()
 voicevox_opt=VoicevoxTTSOptions(
-    speaker=8, # つむぎ
+    speaker_id=8, # つむぎ
     speedScale=1.0,
 )
 # tts_model = GTTSModel()
