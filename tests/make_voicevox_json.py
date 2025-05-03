@@ -11,6 +11,7 @@ import requests
 from requests.exceptions import HTTPError
 import wave
 from fastrtc_jp.speech_to_text.sr_google import GoogleSTT
+from fastrtc_jp.speech_to_text.mlx_whisper import MlxWhisper
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +206,11 @@ def main():
     with open(json_file, 'w', encoding='utf-8') as f:
         json.dump(char_info_list, f, ensure_ascii=False, indent=2)
 
-    stt = GoogleSTT()
+    stt = MlxWhisper(
+        path_or_hf_repo='mlx-community/whisper-large-v3-turbo',
+        language='ja',
+    )
+    # gstt = GoogleSTT()
     for audio_path in audio_targets:
         dir = os.path.join(output_dir,os.path.basename(audio_path))
         os.makedirs(dir,exist_ok=True)
@@ -213,20 +218,67 @@ def main():
             if not wave_path.endswith('.wav'):
                 continue
             save_text = os.path.join(dir,wave_path.replace('.wav','.txt'))
+            if 'talk-audios' in audio_path and 'normal' not in wave_path:
+                if os.path.exists(save_text):
+                    print(f"remove {save_text}")
+                    os.remove(save_text)
+                continue
+            callinfo = None
+            for info in char_info_list:
+                if wave_path.startswith(info['id']):
+                    print(f"found {wave_path} in {info['id']}")
+                    callinfo = info
+                    break
+            if callinfo is None:
+                print(f"not found {wave_path} in {audio_path}")
+                logger.error(f"not found {wave_path} in {audio_path}")
+                continue
             text = ""
             if os.path.exists(save_text):
                 with open(save_text,'r') as f:
                     text = f.read()
             if not text:
+                prompt = None
+                for info in char_info_list:
+                    if wave_path.startswith(info['id']):
+                        print(f"found {wave_path} in {info['id']}")
+                        sample_set = set()
+                        sample_set.add(info['key'])
+                        sample_set.add(info['name'])
+                        for x in info['me']:
+                            sample_set.add(x)
+                        for x in info['you']:
+                            sample_set.add(x)
+                        prompt = " ".join(sample_set)
+                        print(f"prompt {prompt}")
+                        break
+                stt.set_initial_prompt(prompt)
+
                 buf = BytesIO()
                 repo.download_file( f"{audio_path}/{wave_path}", buf )
                 print(f"load {wave_path}")
                 audio_data = load_waveb(buf)
                 print(f"speech-to-text {wave_path}")
                 text = stt.stt( audio_data )
-                print(f"speech-to-text {text}")
-                with open(save_text,'w') as f:
-                    f.write(text)
+                print(f"[WHISPER] {text}")
+                if len(text)>0:
+                    print(f"speech-to-text {text}")
+                    with open(save_text,'w') as f:
+                        f.write(text)
+                else:
+                    print(f"speech-to-text failed {wave_path}")
+                    logger.error(f"speech-to-text failed {wave_path}")
+                    if os.path.exists(save_text):
+                        print(f"remove {save_text}")
+                        os.remove(save_text)
+            if text:
+                samples = callinfo.get('samples',[])
+                if text not in samples:
+                    samples.append(text)
+                    callinfo['samples'] = samples
+    print(f"save to {json_file}")
+    with open(json_file, 'w', encoding='utf-8') as f:
+        json.dump(char_info_list, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
     main()
