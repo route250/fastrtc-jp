@@ -70,8 +70,12 @@ VOICEVOX_HOSTLIST=http://127.0.0.1:50021
 ```
 
 - VoicevoxTTSOptionsクラス
-  - `speaker`: 話者ID（整数）VOICEVOXのドキュメントなどでIDを探して下さい。
+  - `speaker_name`: キャラクターの名前
+  - `speaker_style`: 声のスタイル
+  - `speaker_id`: 話者ID（整数）
   - `speedScale`: 話速スケール（デフォルト: 1.0）
+
+  [http://127.0.0.1:50021/speakers](http://127.0.0.1:50021/speakers)などで、キャラクターの名前、スタイル、idを調べて、話者IDもしくは、名前とスタイルを設定して下さい。
 
 ##### StyleBertVits2を使用する場合:
 
@@ -89,10 +93,29 @@ pip install fastrtc-jp[sbv2]
 
 - StyleBertVits2Optionsクラス
 
+　- `model`: モデル名
   - `model_path`: モデルファイルのパス
   - `config_path`: 設定ファイルのパス
   - `style_vec_path`: スタイルベクトルファイルのパス
   - `device`: 使用するデバイス（デフォルト: "cpu"）
+  - `speaker_id`: 話者ID (各モデルのconfig.jsonで確認して下さい)
+  - `speaker_style`: スタイル(各モデルのconfig.jsonで確認して下さい)
+
+  モデル名には以下のプリセット名を指定できます。プリセットを設定する場合、model_path,config_path,style_vec_pathは設定不要です。プリセット以外のモデルは、別途ダウンロードして、model_path,config_path,style_vec_pathを指定して下さい。
+  モデルの利用条件は、配布元にて確認して下さい。
+  |プリセット名|配布元|
+  |---|---|
+  |jvn-F1-jp|https://huggingface.co/litagin/style_bert_vits2_jvnv|
+  |jvn-F2-jp|https://huggingface.co/litagin/style_bert_vits2_jvnv|
+  |jvn-M1-jp|https://huggingface.co/litagin/style_bert_vits2_jvnv|
+  |jvn-M2-jp|https://huggingface.co/litagin/style_bert_vits2_jvnv|
+  |rinne|https://huggingface.co/RinneAi/Rinne_Style-Bert-VITS2|
+  |girl|https://huggingface.co/Mofa-Xingche/girl-style-bert-vits2-JPExtra-models|
+  |tsukuyomi-chan|https://huggingface.co/Mofa-Xingche/girl-style-bert-vits2-JPExtra-models|
+  |AbeShinzo|https://huggingface.co/AbeShinzo0708/AbeShinzo_Style_Bert_VITS2|
+  |sakura-miko|https://huggingface.co/Lycoris53/style-bert-vits2-sakura-miko|
+
+   それぞれのファイルは、初回にダウンロードされます。ダウンロード先は、$HOME/.cache/huggingface/hubです。
 
 ```python:参考
 StyleBertVits2Options( device="cpu",
@@ -126,7 +149,7 @@ Google Text-to-Speechを使用した音声合成モデルです。
 
 [Vosk](https://alphacephei.com/vosk/)は、オフラインで動作する音声認識エンジンです。
 詳細は[Voskの公式](https://alphacephei.com/vosk)を参照してください。
-一応、日本語のモデルを自動でダウンロードするようにしています。
+一応、日本語のモデルを自動でダウンロードするようにしています。ダウンロード先は、$HOME/.cache/voskです。
 
 ```bash
 pip install fastrtc-jp[vosk]
@@ -147,7 +170,7 @@ pip install fastrtc-jp[mlx]
 - MlxWhisperクラス
 
 現在は、'mlx-community/whisper-medium-mlx-q4'に固定です。
-mlx-communityから、mlx対応のモデルを自動的にダウンロードするようにしています。
+mlx-communityから、mlx対応のモデルを自動的にダウンロードするようにしています。ダウンロード先は、$HOME/.cache/huggingface/hubです。
 
 ##### GoogleSTTを使用する場合:
 
@@ -284,7 +307,7 @@ stt_model = GoogleSTT()
 # 音声合成モデルの初期化
 tts_model = VoicevoxTTSModel()
 voicevox_opt = VoicevoxTTSOptions(
-    speaker=8,  # つむぎ
+    speaker_id=8,  # つむぎ
     speedScale=1.0,
 )
 # tts_model = GTTSModel()  # gTTSを使用する場合

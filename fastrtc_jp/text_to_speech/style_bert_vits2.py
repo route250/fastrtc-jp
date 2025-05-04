@@ -11,7 +11,7 @@ from fastrtc.text_to_speech.tts import TTSOptions, TTSModel
 
 from fastrtc_jp.text_to_speech.util import split_to_talk_segments
 
-from style_bert_vits2.constants import DEFAULT_BERT_TOKENIZER_PATHS, Languages
+from style_bert_vits2.constants import DEFAULT_BERT_TOKENIZER_PATHS, Languages, DEFAULT_STYLE
 from style_bert_vits2.nlp import bert_models
 from style_bert_vits2.tts_model import TTSModel as SBV2_TTSModel
 
@@ -183,6 +183,9 @@ def to_language(lang: str|None) -> Languages:
 
 @dataclass
 class StyleBertVits2Options(TTSOptions):
+    speaker_id: int|None = None
+    speaker_style: str|None = None
+    speaker_name: str|None = None
     model:int|str|None = None
     model_path: str|Path|None = None
     config_path: str|Path|None = None
@@ -245,7 +248,26 @@ class StyleBertVits2(TTSModel):
 
     async def _run(self, text:str, options:StyleBertVits2Options|None=None) -> tuple[int, NDArray[np.float32]]:
         model:SBV2_TTSModel = await self._load(options)
-        frame = model.infer(text)
+
+        speaker_id:int = 0 if 0 in model.id2spk else list(model.id2spk.keys())[0]
+        speaker_style:str = DEFAULT_STYLE if DEFAULT_STYLE in model.style2id else list(model.style2id.keys())[0]
+        if options:
+            if options.speaker_id in model.id2spk:
+                speaker_id = options.speaker_id
+                options.speaker_name = model.id2spk[speaker_id]
+            elif options.speaker_name in model.spk2id:
+                speaker_id = model.spk2id[options.speaker_name]
+                options.speaker_id = speaker_id
+            else:
+                options.speaker_id = speaker_id
+                options.speaker_name = model.id2spk[speaker_id]
+
+            if options.speaker_style in model.style2id:
+                speaker_style = options.speaker_style
+            else:
+                options.speaker_style = speaker_style
+
+        frame = model.infer(text,speaker_id=speaker_id,style=speaker_style)
         return frame
 
     def tts(self, text: str, options:StyleBertVits2Options|None=None) -> tuple[int, NDArray[np.float32]]:
