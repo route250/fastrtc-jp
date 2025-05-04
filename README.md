@@ -1,17 +1,19 @@
+[Japanese](README.md)/[English](README_en.md)
+
 # fastrtc-jp
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://img.shields.io/pypi/v/fastrtc-jp.svg)](https://pypi.org/project/fastrtc-jp/)
 
 fastrtc用の日本語TTSとSTT追加キット（日本語音声合成・認識モジュール）
 
 ## 概要
 
-[fastrtc](https://fastrtc.org/)は高性能なリアルタイム通信フレームワークですが、現状では日本語の音声合成(TTS)および音声認識(STT)機能が十分に対応していません。このプロジェクトは、fastrtcに日本語対応の音声処理機能を追加するための拡張パッケージです。
+[fastrtc](https://fastrtc.org/)は高性能なリアルタイム通信フレームワークですが、現状では日本語の音声合成(TTS)および音声認識(STT)機能が不十分です。このプロジェクトは、fastrtcに日本語対応の音声処理機能を追加するための拡張パッケージです。
 
 主な機能：
-- 日本語に特化した音声合成モデル（Voicevox、StyleBertVits2, gTTS）
+- 日本語に特化した音声合成モデル（VOICEVOX、Style-Bert-VITS2, gTTS）
 - 日本語に対応した音声認識モデル（MlxWhisper, Vosk、Google Speech Recognition）
 
 fastrtcの詳細な使い方については、[fastrtc公式ドキュメント](https://fastrtc.org/)を参照してください。
@@ -20,17 +22,17 @@ fastrtcの詳細な使い方については、[fastrtc公式ドキュメント](
 
 | クラス | 説明 | 追加パッケージ | 特徴 |
 |-------|------|--------------|------|
-| VoicevoxTTSModel | Voicevoxのapiで音声合成するクラス | - | 高品質な日本語音声、多様な話者、感情表現が可能 |
-| StyleBertVits2 | StyleBertVits2で音声合成するクラス | style-bert-vits2, pyopenjtalk | 高品質な音声合成が可能、事前学習済みモデルに対応 |
+| VoicevoxTTSModel | VOICEVOXのapiで音声合成するクラス | - | 高品質な日本語音声、多様な話者、感情表現が可能 |
+| StyleBertVits2 | Style-Bert-VITS2で音声合成するクラス | style-bert-vits2 / pyopenjtalk | 高品質な音声合成が可能、事前学習済みモデルに対応 |
 | GTTSModel | Google Text-to-Speechで音声合成するクラス | gtts | インターネット接続が必要、自然な発話 |
 | VoskSTT | Voskエンジンで音声認識するクラス | vosk | オフライン動作可能、軽量 |
 | MlxWhisper | mlx-whisperで音声認識するクラス | mlx-whisper | 高精度な音声認識、Apple Silicon最適化 |
-| GoogleSTT | SpeechRecognizerのGoogleエンジンで音声認識するクラス | speech_recognizer | 高精度、インターネット接続が必要 |
+| GoogleSTT | SpeechRecognizerのGoogleエンジンで音声認識するクラス | SpeechRecognition==3.10.0 | 高精度、インターネット接続が必要 |
 
 ## システム要件
 
 - Python 3.12以上
-- ubuntu 24.04 及び MacOS 15.4 にて動作確認
+- Ubuntu 24.04 LTS, macOS Sonoma 15.4 にて動作確認
 - 各モデルの追加要件は以下の「インストール」セクションを参照
 
 ## インストール
@@ -77,11 +79,12 @@ VOICEVOX_HOSTLIST=http://127.0.0.1:50021
 
   [http://127.0.0.1:50021/speakers](http://127.0.0.1:50021/speakers)などで、キャラクターの名前、スタイル、idを調べて、話者IDもしくは、名前とスタイルを設定して下さい。
 
-##### StyleBertVits2を使用する場合:
+##### Style-Bert-VITS2を使用する場合:
 
 [Style-Bert-Vits2](https://github.com/litagin02/Style-Bert-VITS2)は、高品質な音声合成が可能なTTSモデルです。事前学習済みモデルを使って、自然な日本語音声を生成できます。
 Style-Bert-Vits2と音声モデルの使用条件については公式ドキュメントなどで確認して下さい。
 詳細は[style-bert-vits2リポジトリ](https://github.com/litagin02/Style-Bert-VITS2)を参照して下さい。
+pythonのstyle-bert-vits2パッケージをpythonコードから利用するには、APIサーバを起動してAPIをコールする方法と、直接実行する方式があります。このパッケージでは、直接実行する方式を実装しています。
 
 ```bash
 pip install fastrtc-jp[sbv2]
@@ -93,7 +96,7 @@ pip install fastrtc-jp[sbv2]
 
 - StyleBertVits2Optionsクラス
 
-　- `model`: モデル名
+  - `model`: モデルプリセット名
   - `model_path`: モデルファイルのパス
   - `config_path`: 設定ファイルのパス
   - `style_vec_path`: スタイルベクトルファイルのパス
@@ -101,8 +104,9 @@ pip install fastrtc-jp[sbv2]
   - `speaker_id`: 話者ID (各モデルのconfig.jsonで確認して下さい)
   - `speaker_style`: スタイル(各モデルのconfig.jsonで確認して下さい)
 
-  モデル名には以下のプリセット名を指定できます。プリセットを設定する場合、model_path,config_path,style_vec_pathは設定不要です。プリセット以外のモデルは、別途ダウンロードして、model_path,config_path,style_vec_pathを指定して下さい。
+  モデルプリセット名には以下のプリセット名を指定できます。プリセットを設定する場合、model_path,config_path,style_vec_pathは設定不要です。プリセット以外のモデルは、別途ダウンロードして、model_path,config_path,style_vec_pathを指定して下さい。
   モデルの利用条件は、配布元にて確認して下さい。
+  
   |プリセット名|配布元|
   |---|---|
   |jvn-F1-jp|https://huggingface.co/litagin/style_bert_vits2_jvnv|
@@ -111,7 +115,7 @@ pip install fastrtc-jp[sbv2]
   |jvn-M2-jp|https://huggingface.co/litagin/style_bert_vits2_jvnv|
   |rinne|https://huggingface.co/RinneAi/Rinne_Style-Bert-VITS2|
   |girl|https://huggingface.co/Mofa-Xingche/girl-style-bert-vits2-JPExtra-models|
-  |tsukuyomi-chan|https://huggingface.co/Mofa-Xingche/girl-style-bert-vits2-JPExtra-models|
+  |tsukuyomi-chan|https://huggingface.co/ayousanz/tsukuyomi-chan-style-bert-vits2-model|
   |AbeShinzo|https://huggingface.co/AbeShinzo0708/AbeShinzo_Style_Bert_VITS2|
   |sakura-miko|https://huggingface.co/Lycoris53/style-bert-vits2-sakura-miko|
 
@@ -173,16 +177,13 @@ pip install fastrtc-jp[mlx]
 mlx-communityから、mlx対応のモデルを自動的にダウンロードするようにしています。ダウンロード先は、$HOME/.cache/huggingface/hubです。
 
 ##### GoogleSTTを使用する場合:
-
-詳細は[speech-recognitionリポジトリ]()を参照して下さい。
-v3.10でgoogleのapiを使用するので、インターネット接続が必要です。
+- 詳細は[speech_recognitionリポジトリ](https://github.com/Uberi/speech_recognition)を参照してください。
 
 ```bash
 pip install fastrtc-jp[sr]
 ```
 
 - GoogleSTTクラス
-
 Googleの音声認識エンジンを使用します。インターネット接続が必要です。
 
 ## 使用例
@@ -229,7 +230,7 @@ if __name__ == "__main__":
     example_echoback()
 ```
 
-### Voicevoxで音声合成するサンプル
+### VOICEVOXで音声合成するサンプル
 
 ```python
 import sys, os
@@ -242,7 +243,7 @@ from fastrtc.stream import Stream
 from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSModel, VoicevoxTTSOptions
 
 """
-voicevoxで音声合成するだけのサンプル
+VOICEVOXで音声合成するだけのサンプル
 """
 
 tts_model = VoicevoxTTSModel()  # デフォルトはlocalhostの50021ポートに接続
