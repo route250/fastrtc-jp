@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from fastrtc.text_to_speech.tts import TTSOptions, TTSModel
+from fastrtc.text_to_speech.tts import TTSModel
 
 from fastrtc_jp.text_to_speech.util import split_to_talk_segments
 
@@ -15,6 +15,7 @@ from style_bert_vits2.constants import DEFAULT_BERT_TOKENIZER_PATHS, Languages, 
 from style_bert_vits2.nlp import bert_models
 from style_bert_vits2.tts_model import TTSModel as SBV2_TTSModel
 
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 from fastrtc_jp.utils.hf_util import download_hf_hub
 
 # style-vert-vits2のログを設定
@@ -182,24 +183,17 @@ def to_language(lang: str|None) -> Languages:
         return Languages.JP
 
 @dataclass
-class StyleBertVits2Options(TTSOptions):
-    speaker_id: int|None = None
-    speaker_style: str|None = None
-    speaker_name: str|None = None
-    model:int|str|None = None
+class StyleBertVits2Options(SpkOptions):
     model_path: str|Path|None = None
     config_path: str|Path|None = None
     style_vec_path: str|Path|None = None
     device: str = "cpu"
-    split:bool = False
-    speedScale: float = 1.1
-    pitchOffset: float = 0.0
-    lang: str = "ja-jp"
+
 
 class StyleBertVits2(TTSModel):
     def __init__(self):
         self.model:SBV2_TTSModel|None = None
-        pass
+        self._assist_text:str = ""
 
     async def _load(self,options:StyleBertVits2Options|None=None) -> SBV2_TTSModel:
         if self.model is None:
@@ -251,6 +245,7 @@ class StyleBertVits2(TTSModel):
 
         speaker_id:int = 0 if 0 in model.id2spk else list(model.id2spk.keys())[0]
         speaker_style:str = DEFAULT_STYLE if DEFAULT_STYLE in model.style2id else list(model.style2id.keys())[0]
+        speedScale:float = 1.0
         if options:
             if options.speaker_id in model.id2spk:
                 speaker_id = options.speaker_id
@@ -267,7 +262,15 @@ class StyleBertVits2(TTSModel):
             else:
                 options.speaker_style = speaker_style
 
-        frame = model.infer(text,speaker_id=speaker_id,style=speaker_style)
+            if options.speedScale:
+                speedScale = speedScale * options.speedScale
+
+        frame = model.infer(
+            text,
+            speaker_id=speaker_id,style=speaker_style,
+            assist_text=self._assist_text,use_assist_text=True
+        )
+        self._assist_text = (self._assist_text + " " + text)[-200:]
         return frame
 
     def tts(self, text: str, options:StyleBertVits2Options|None=None) -> tuple[int, NDArray[np.float32]]:

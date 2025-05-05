@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from io import BytesIO
 import numpy as np
 from numpy.typing import NDArray
-from fastrtc.text_to_speech.tts import TTSOptions, TTSModel
+from fastrtc.text_to_speech.tts import TTSModel
 from fastrtc.utils import audio_to_float32
 from fastrtc_jp.text_to_speech.util import split_to_talk_segments
 from fastrtc_jp.speech_to_text.util import resample_audio, time_stretch1
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 from gtts import gTTS
 import av
 from av.container import InputContainer
@@ -32,12 +33,11 @@ def mp3_to_pcm( mp3_data: bytes) -> tuple[int, NDArray[np.float32]]:
         pcm_data2 = pcm_data
     return sample_rate, pcm_data2
 
+
 @dataclass
-class GTTSOptions(TTSOptions):
-    split:bool = False
-    lang: str = "ja"       # 言語
+class GTTSOptions(SpkOptions):
     tld: str = "jp"        # トップレベルドメイン
-    speed: float = 1.0     # 速度（現在のgTTSは未対応だが将来のために）
+
 
 class GTTSModel(TTSModel):
     def __init__(self):
@@ -53,7 +53,7 @@ class GTTSModel(TTSModel):
         mp3_data.seek(0)
         sr,audio = mp3_to_pcm(mp3_data.read())
         # 速度調整
-        audio = time_stretch1(audio, sr, round( 1.3 * options.speed, 1))
+        audio = time_stretch1(audio, sr, round( 1.3 * options.speedScale, 1))
         # サンプリングレート変換
         audio = resample_audio( sr, audio, self._sample_rate )
         return (self._sample_rate, audio)

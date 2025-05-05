@@ -10,10 +10,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from dataclasses import dataclass
-from fastrtc.text_to_speech.tts import TTSOptions, TTSModel
+from fastrtc.text_to_speech.tts import TTSModel
 
 from fastrtc_jp.utils.util import get_availavle_url
 from fastrtc_jp.text_to_speech.util import split_to_talk_segments
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 import json
 import pathlib
 from functools import lru_cache
@@ -50,16 +51,10 @@ class VoicevoxStyleInfo:
 
 
 @dataclass
-class VoicevoxTTSOptions(TTSOptions):
-    split:bool = False
+class VoicevoxTTSOptions(SpkOptions):
     url: str|None = None
-    speaker_name: str|None = None
     speaker_uuid: str|None = None
-    speaker_style: str|None = None
     speaker_id: int = 8 # ひびき
-    speedScale: float = 1.1
-    pitchOffset: float = 0.0
-    lang: str = "ja-jp"
 
 
 @lru_cache(maxsize=1)
