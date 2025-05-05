@@ -5,10 +5,12 @@ from dotenv import load_dotenv
 from fastrtc_jp.text_to_speech.style_bert_vits2 import StyleBertVits2,StyleBertVits2Options
 from utils import play_audio
 
-def test_buildin_model(model:str|None=None,speaker_id:int|None=None):
+def test_buildin_model(model:str|None=None,speaker_id:int|None=None,device:str|None=None):
     tts = StyleBertVits2()
     text = f"こんにちは、{model}です。今日も良い天気ですね。"
-    options:StyleBertVits2Options|None = StyleBertVits2Options(model=model,speaker_id=speaker_id) if model else None
+    options:StyleBertVits2Options|None = None
+    if model or device:
+        options = StyleBertVits2Options(model=model,speaker_id=speaker_id,device=device or "cpu")
     print(f"test model:{model}")
     for sample_rate,audio in tts.stream_tts_sync(text,options=options):
         print(f"  audio: sr:{sample_rate} {audio.shape} {audio.dtype}")

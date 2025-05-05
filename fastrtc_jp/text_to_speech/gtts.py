@@ -46,7 +46,7 @@ class GTTSModel(TTSModel):
     def tts(self, text: str, options: GTTSOptions | None = None) -> tuple[int, NDArray[np.float32]]:
         options = options or GTTSOptions()
         # tts実行
-        tts = gTTS(text=text, lang=options.lang, tld=options.tld)
+        tts = gTTS(text=text, lang=options.lang2str(), tld=options.tld)
         # mp3からpcmに変換
         mp3_data = BytesIO()
         tts.write_to_fp(mp3_data)
@@ -67,9 +67,12 @@ class GTTSModel(TTSModel):
 
     def stream_tts_sync(self, text: str, options: GTTSOptions | None = None) -> Generator[tuple[int, NDArray[np.float32]], None, None]:
         loop = asyncio.new_event_loop()
-        iterator = self.stream_tts(text, options).__aiter__()
-        while True:
-            try:
-                yield loop.run_until_complete(iterator.__anext__())
-            except StopAsyncIteration:
-                break
+        try:
+            iterator = self.stream_tts(text, options).__aiter__()
+            while True:
+                try:
+                    yield loop.run_until_complete(iterator.__anext__())
+                except StopAsyncIteration:
+                    break
+        finally:
+            loop.close()

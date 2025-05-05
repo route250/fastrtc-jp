@@ -18,7 +18,7 @@ from style_bert_vits2.tts_model import TTSModel as SBV2_TTSModel
 from fastrtc_jp.text_to_speech.opt import SpkOptions
 from fastrtc_jp.utils.hf_util import download_hf_hub
 
-# style-vert-vits2のログを設定
+# style-bert-vits2のログを設定
 import loguru
 loguru.logger.remove()  # 既存のログ設定を削除
 loguru.logger.add(sys.stderr, level="ERROR")  # ERRORレベルのログのみを表示
@@ -289,10 +289,13 @@ class StyleBertVits2(TTSModel):
 
     def stream_tts_sync( self, text: str, options: StyleBertVits2Options|None ) -> Generator[tuple[int, NDArray[np.float32]], None, None]:
         loop = asyncio.new_event_loop()
-        # Use the new loop to run the async generator
-        iterator = self.stream_tts(text, options).__aiter__()
-        while True:
-            try:
-                yield loop.run_until_complete(iterator.__anext__())
-            except StopAsyncIteration:
-                break
+        try:
+            # Use the new loop to run the async generator
+            iterator = self.stream_tts(text, options).__aiter__()
+            while True:
+                try:
+                    yield loop.run_until_complete(iterator.__anext__())
+                except StopAsyncIteration:
+                    break
+        finally:
+            loop.close()

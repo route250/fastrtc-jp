@@ -261,10 +261,13 @@ class VoicevoxTTSModel(TTSModel):
 
     def stream_tts_sync( self, text: str, options: VoicevoxTTSOptions | None = None ) -> Generator[tuple[int, NDArray[np.float32]], None, None]:
         loop = asyncio.new_event_loop()
-        # Use the new loop to run the async generator
-        iterator = self.stream_tts(text, options).__aiter__()
-        while True:
-            try:
-                yield loop.run_until_complete(iterator.__anext__())
-            except StopAsyncIteration:
-                break
+        try:
+            # Use the new loop to run the async generator
+            iterator = self.stream_tts(text, options).__aiter__()
+            while True:
+                try:
+                    yield loop.run_until_complete(iterator.__anext__())
+                except StopAsyncIteration:
+                    break
+        finally:
+            loop.close()
