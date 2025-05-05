@@ -200,8 +200,13 @@ class VoicevoxTTSModel(TTSModel):
 
     def __init__(self, hostlist:str|None=None):
         self._voicevox_url:str|None = None
-        self._voicevox_list:str = hostlist if hostlist else 'http://127.0.0.1:50021'
-        self._sample_rate = 48000
+        if hostlist:
+            self._voicevox_list = hostlist
+        elif os.environ.get('VOICEVOX_HOSTLIST',''):     
+            self._voicevox_list:str = os.environ.get('VOICEVOX_HOSTLIST','')
+        else:
+            self._voicevox_list = 'http://127.0.0.1:50021'
+        self._sample_rate:int = 24000
 
 
     async def _aget_voicevox_url( self ) ->str|None:

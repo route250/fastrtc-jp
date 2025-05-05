@@ -40,6 +40,14 @@ import zlib
     # model_size = 'mlx-community/whisper-large-v3-mlx'
     # mlx-community/whisper-large-v3-turbo # 1.6GB
 
+def remove_hallucinated(text:str|list|None) ->str|list|None:
+    if isinstance(text, str):
+        if text == 'Thank you.':
+            return text
+        if text == 'ご視聴ありがとうございました。':
+            return text
+    return text
+
 class MlxWhisper(STTModel):
     """fastrtcのSTTModelを実装したクラス"""
     def __init__(self,*,
@@ -89,6 +97,7 @@ class MlxWhisper(STTModel):
             fp16=False,
         )
         text = transcribe_res.get('text', '')
+        text = remove_hallucinated(text)
         # print(f"stt: {text}")
         if not isinstance(text,str) or len(text) == 0:
             return ""
