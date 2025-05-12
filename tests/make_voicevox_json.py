@@ -11,7 +11,12 @@ import requests
 from requests.exceptions import HTTPError
 import wave
 from fastrtc_jp.speech_to_text.sr_google import GoogleSTT
-from fastrtc_jp.speech_to_text.mlx_whisper import MlxWhisper
+WITH_MLX_WHISPER = False
+try:
+    from fastrtc_jp.speech_to_text.mlx_whisper import MlxWhisper
+    WITH_MLX_WHISPER = True
+except:
+    WITH_MLX_WHISPER = False
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +149,18 @@ def load_char_info(repo:GitHubRepo, file:str) -> dict|None:
     except Exception as ex:
         logger.error(f"can not load {file} {ex}\n{source}\n----\n{text}")
 
+def decode_ruby( value ):
+    if value is None:
+        return None
+    value = re.sub(r'<rp>[^<>]*</rp>', '', value)
+    value = re.sub(r'^<ruby>(.*)</ruby>$', r'\1', value)
+    ruby = ""
+    for segment in value.split('</ruby><ruby>'):
+        segment = re.sub(r'[^<>]*<rt>([^<>]+)</rt>', r'\1', segment)
+        ruby += segment
+    ruby = re.sub(r'[^\u3040-\u309F\u30A0-\u30FF]', ' ', ruby).strip()
+    return ruby
+
 def main():
 
     output_dir = 'tmp/voicevox_data'
@@ -191,6 +208,9 @@ def main():
             print(f"ERRIR;not found {name} in {source_target}")
             logger.error(f"not found {name} in {source_target}")
             continue
+        rby = decode_ruby( char_info.get('rubyName') )
+        if rby:
+            char_info['rubyName'] = rby
         me = aaa.get('me')
         if me:
             char_info['me'] = me
@@ -206,11 +226,13 @@ def main():
     with open(json_file, 'w', encoding='utf-8') as f:
         json.dump(char_info_list, f, ensure_ascii=False, indent=2)
 
-    stt = MlxWhisper(
-        path_or_hf_repo='mlx-community/whisper-large-v3-turbo',
-        language='ja',
-    )
-    # gstt = GoogleSTT()
+    if WITH_MLX_WHISPER:
+        stt = MlxWhisper(
+            path_or_hf_repo='mlx-community/whisper-large-v3-turbo',
+            language='ja',
+        )
+    else:
+        stt = GoogleSTT()
     for audio_path in audio_targets:
         dir = os.path.join(output_dir,os.path.basename(audio_path))
         os.makedirs(dir,exist_ok=True)
@@ -252,7 +274,8 @@ def main():
                         prompt = " ".join(sample_set)
                         print(f"prompt {prompt}")
                         break
-                stt.set_initial_prompt(prompt)
+                if WITH_MLX_WHISPER and isinstance(stt,MlxWhisper):
+                    stt.set_initial_prompt(prompt)
 
                 buf = BytesIO()
                 repo.download_file( f"{audio_path}/{wave_path}", buf )
