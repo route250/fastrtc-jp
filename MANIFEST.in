@@ -1,0 +1,2 @@
+# Include the voicevox_charinfo.json as package data
+include fastrtc_jp/text_to_speech/voicevox_charinfo.json
