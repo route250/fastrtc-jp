@@ -35,17 +35,18 @@ class ServiceProcess:
         self.cmd:Synchronized = Value('i',0)
         self.inp = Queue()
         self.out = Queue()
-        self.process:Process = None # type: ignore
+        self.process:Process|None = None
 
     def start_up(self):
         """
         Start the process if it has not been started yet.
         If already stopped, raise an exception.
         """
-        if self.stat.value == NOT_STARTED:
-            if self.process is not None:
+        if self.process is not None:
+            if self.stat.value == NOT_STARTED:
+                self.stat.value = INITIALIZING
                 self.process.start()
-            else:
+            elif not self.process.is_alive():
                 self.stat.value = STOPPED
         elif self.is_stopped():
             raise Exception("stopped")
