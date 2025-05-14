@@ -1,0 +1,130 @@
+
+import asyncio
+from dataclasses import dataclass
+import inspect
+from typing import Protocol, Type, Callable, Any, Literal, AsyncGenerator
+from logging import getLogger
+
+import numpy as np
+from numpy.typing import NDArray
+import librosa
+
+from fastrtc.utils import audio_to_float32, audio_to_int16
+
+from fastrtc_jp.handler.voice import SttAudio
+from fastrtc_jp.speech_to_text.util import resample_audio
+
+logger = getLogger(__name__)
+
+def get_warmupdata(*,sample_rate:int=16000,duration:float=0.4,frequency:float=440.0,ch:int=2) ->tuple[int, NDArray[np.int16 | np.float32]]:
+    """音声データを生成する"""
+    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+    audio_data = (np.sin(2 * np.pi * frequency * t) * 32767).astype(np.int16)
+    if ch > 1:
+        audio_data = np.stack([audio_data] * ch, axis=0)  # 指定されたチャンネル数に複製
+    else:
+        audio_data = audio_data[np.newaxis, :]  # モノラルの場合、次元を追加
+    return sample_rate, audio_data
+
+def audio_to_vad(sampling_rate:int, audio:np.ndarray) ->tuple[int,np.ndarray]:
+    try:
+        audio_f32 = audio_to_float32(audio)
+        sr = 16000
+        if sr != sampling_rate:
+            audio_f32 = librosa.resample(audio_f32, orig_sr=sampling_rate, target_sr=sr)
+    except Exception as ex:
+        logger.error(ex)
+        print(ex)
+        audio_f32 = np.zeros((0),dtype=np.float32)
+    return (sr,audio_f32)
+
+@dataclass
+class VadOptions:
+    """Algorithm options."""
+    audio_chunk_duration: float = 0.6
+    started_talking_threshold: float = 0.2
+    speech_threshold: float = 0.1
+
+class VadHandler:
+
+    logger = getLogger(f"{__name__}.{__qualname__}")
+    frame_rate:int = 16000
+    def __init__(
+            self,
+            vad_fn:Callable[[tuple[int,NDArray[np.int16]]],float],
+            algo_options: VadOptions|None=None,
+        ):
+        self.vad_fn:Callable[[tuple[int,NDArray[np.int16]]],float] = vad_fn
+        self.algo_options: VadOptions = algo_options or VadOptions()
+
+        self.in_talking:bool = False
+        self.rec_count:int = 0
+        self.buffer = None
+        self.audio_segment:NDArray[np.int16]|None = None
+
+    def reset(self):
+        self.in_talking = False
+        self.rec_count = 0
+        self.buffer = None
+
+    def shutdown(self):
+        pass
+
+    async def rcv(self, frame: tuple[int, NDArray[np.int16]]) ->tuple[bool,SttAudio|None]:
+        stt_audio:SttAudio|None = None
+        #----------------------
+        # vadの長さになるまで
+        #----------------------
+        # frameを分解
+        frame_rate, frame_audio = frame
+        if frame_rate != self.frame_rate or frame_audio.shape[0]!=1:
+            # 16khz mono 以外なら無視する
+            return False,None
+        frame_audio = np.squeeze(frame_audio) # shapeを変換 (ch,length) -> (length,)
+        self.rec_count += len(frame_audio)
+        # state更新
+        if self.buffer is None or len(self.buffer)==0:
+            self.receive_rate = frame_rate
+            self.buffer = frame_audio
+        else:
+            self.buffer = np.concatenate((self.buffer, frame_audio))
+        duration = len(self.buffer) / self.receive_rate
+        if duration < self.algo_options.audio_chunk_duration:
+            # 規定の長さ以下
+            return self.in_talking, None
+        
+        # vad 判定 (内部で 16Khz float32に変換される)
+        vad_frame = audio_to_vad( self.receive_rate,self.buffer )
+        dur_vad = self.vad_fn( vad_frame )
+        if dur_vad<0.0 or 1.0<dur_vad:
+            self.logger.debug("<vad> duration: %s", dur_vad)
+            dur_vad = 0.0
+
+        if dur_vad > self.algo_options.started_talking_threshold and not self.in_talking:
+            self.in_talking = True
+            self.logger.debug(f"<vad> started talking vad:{dur_vad}")
+
+        # segmentに追加
+        if self.audio_segment is None or len(self.audio_segment)==0:
+            self.audio_segment = self.buffer
+        else:
+            self.audio_segment = np.concatenate((self.audio_segment, self.buffer))
+        self.buffer = None
+
+        if not self.in_talking:
+            # 無声部分の場合、最後のところだけ残しておく
+            max_duration = 0.3
+            current_duration = len(self.audio_segment) / self.receive_rate
+            if current_duration > max_duration:
+                start_idx = int((current_duration - max_duration) * self.receive_rate)
+                self.audio_segment = self.audio_segment[start_idx:]
+
+        if dur_vad < self.algo_options.speech_threshold and self.in_talking:
+            self.logger.debug(f"<vad> stop talking vad:{dur_vad}")
+            segment = self.audio_segment.reshape(1, -1)
+            self.audio_segment = None
+            length = segment.shape[1]
+            stt_audio = SttAudio(self.rec_count-length, self.rec_count, self.receive_rate, segment)
+            self.in_talking = False
+
+        return self.in_talking, stt_audio
