@@ -111,6 +111,12 @@ def test_speech_gr():
                 with gr.Row(scale=15):
                     dmydata = gr.JSON(label="debug")
                 with gr.Row(scale=1):
+                    dropdown = gr.Dropdown(
+                        label="Options",
+                        choices=["Option 1", "Option 2", "Option 3"],
+                        value="Option 1"
+                    )
+                with gr.Row(scale=1):
                     audio = WebRTC(label="Stream",mode="send-receive", modality="audio" )
             with gr.Column(scale=3):
                 chat_area = gr.Chatbot(label="chat", type="messages")
@@ -129,7 +135,7 @@ def test_speech_gr():
                 get_tts_model_fn=get_tts_model,
                 vad_options=vad_options,
             ),
-            inputs=[audio],
+            inputs=[audio,dropdown],
             outputs=[audio],
             time_limit=None
         )
@@ -153,7 +159,6 @@ def test_speech_gr():
                 print(f"ERROR:{ex}",flush=True)
             return {},[ChatMessage(role='user', content='empty1')]
             
-
         audio.on_additional_outputs(
             process_outputs,
             outputs=[dmydata,chat_area],

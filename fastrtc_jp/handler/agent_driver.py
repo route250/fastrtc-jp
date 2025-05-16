@@ -9,9 +9,6 @@ class AgentDriver(ABC):
     def copy(self) ->"AgentDriver":
         return self
 
-    def reset(self):
-        pass
-
     async def start_up(self):
         pass
 

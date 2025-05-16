@@ -73,7 +73,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         self.vad_options = vad_options
         self.vad_hdr = VadHandler(vad_fn, vad_options)
         self.emit_manager: EmitManager = EmitManager()
-        self.in_talking:bool = False
+        self._before_in_talking:bool = False
 
         self.stt_queue:asyncio.Queue[SttAudio] = asyncio.Queue()
         self.agent_queue:asyncio.Queue[AgentTask] = asyncio.Queue()
@@ -98,6 +98,15 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     # def _needs_additional_inputs(self) -> bool:
     #     """Checks if the reply function `fn` expects additional arguments."""
     #     return len(inspect.signature(self.fn).parameters) > 1
+
+    async def request_args(self):
+        if not self.phone_mode: 
+            if self.channel:
+                self.args_set.clear()
+                await self.fetch_args()
+        else:
+            self.latest_args = [None]
+            self.args_set.set()
 
     #Override
     def copy(self):
@@ -125,15 +134,15 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
             self.logger.exception("can not reset")
 
 
-    #Override
-    def reset(self):
-        try:
-            self.stat = HdrStat.Init
-            super().reset()
-            self._stop_task()
-            self.driver.reset()
-        except:
-            self.logger.exception("can not reset")
+    # #Override
+    # def reset(self):
+    #     try:
+    #         self.stat = HdrStat.Init
+    #         super().reset()
+    #         self._stop_task()
+    #         self.driver.reset()
+    #     except:
+    #         self.logger.exception("can not reset")
 
 
     #Override
@@ -169,16 +178,17 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     #Override
     async def receive(self, frame: tuple[int, NDArray[np.int16]]) -> None:
         try:
-            in_talking, stt_audio = await self.vad_hdr.rcv(frame)
+            stt_audio = await self.vad_hdr.receive(frame)
             if self.vad_hdr.in_talking:
-                self.in_talking = True
                 self.emit_manager.set_pause(True)
             if stt_audio:
                 self.stt_queue.put_nowait(stt_audio)
-                self.in_talking = False
-                await asyncio.sleep(0.001)
                 self.emit_manager.set_pause(False)
-            pass
+
+            if self._before_in_talking != self.vad_hdr.in_talking:
+                self._before_in_talking = self.vad_hdr.in_talking
+                await asyncio.sleep(0.001)
+
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyboardInterrupt, SystemExit):
             pass
         except:
@@ -224,6 +234,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 # queueからデータを非同期に取得
                 nx_stt_audio:SttAudio|None = await wait_for_item(self.stt_queue)
                 if nx_stt_audio is not None:
+                    asyncio.create_task( self.request_args() )
                     # 非同期でttsを実行
                     stt_result: str|None = await self._stt_service.stt( (nx_stt_audio.rate, nx_stt_audio.audio) )
                     if stt_result:
@@ -246,7 +257,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                                 self.wakeup_status = Listen.TALKING
                                 self.wakeup_time = time.time()
 
-                if not self.in_talking and self.stt_queue.qsize()==0:
+                if not self.vad_hdr.in_talking and self.stt_queue.qsize()==0:
                     if len(buffer_data)>0:
                         before_task = AgentTask(self.session, self.driver, buffer_data.copy_to_list() )
                         buffer_data.reset()
@@ -269,6 +280,8 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         while self.stat == HdrStat.Running:
             try:
                 agent_task:AgentTask = await self.agent_queue.get()
+                args = self.latest_args
+                print(f"<agent> args {args}")
                 print(f"<agent> get from tts_quque")
                 no:int = 0
                 async for words in agent_task.execute():
@@ -280,9 +293,11 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 self.agent_queue.task_done()
                 print(f"<agent> done agent_task")
             except (asyncio.CancelledError, asyncio.TimeoutError, KeyboardInterrupt, SystemExit):
+                print(f"<agent> cancelled")
                 break
             except Exception as e:
                 self.logger.exception(f"Error in agent_task: {e}")
+        print(f"<agent> end agent_task")
 
 
     async def _fn_task_tts(self):
