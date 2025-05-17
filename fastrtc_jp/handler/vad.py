@@ -109,7 +109,6 @@ class VadHandler:
         if duration < self.algo_options.audio_chunk_duration:
             # 規定の長さ以下
             return None
-        print(" .",end="")
 
         # vad 判定 
         vad_frame = audio_to_float32( self.buffer[self.start_idx:self.end_idx] )

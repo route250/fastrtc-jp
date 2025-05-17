@@ -32,6 +32,7 @@ from fastrtc_jp.speech_to_text.sr_google import GoogleSTT
 from fastrtc_jp.text_to_speech.gtts import GTTSModel
 from fastrtc_jp.handler.stream_handler import AsyncVoiceStreamHandler
 from fastrtc_jp.utils.util import load_dotenv, setup_logger
+from fastrtc_jp.handler.stt_driver import SttDriver
 
 from fastrtc_jp.handler.dummy import dummy_response
 
@@ -62,6 +63,41 @@ def get_stt_model() -> STTModel:
 
 def get_tts_model() -> TTSModel:
     return GTTSModel()
+
+class GoogleSttDriver(SttDriver):
+    def __init__(self,):
+        pass
+
+    #Override
+    def copy(self) ->"SttDriver":
+        return self
+
+    #Override
+    async def start_up(self) -> None:
+        pass
+
+    #Override
+    def get_vad(self,state:bool, sr:int, audio:NDArray[np.int16]|NDArray[np.float32], algo_options:AlgoOptions, options ) -> bool:
+        length = audio.shape[0]
+        secs = length / sr
+        value,chunks = vadmodel.vad( (sr,audio),options)
+        if math.isnan(value) or math.isinf(value):
+            logger.warning("VAD value is NaN or Inf")
+            return False
+        if value>algo_options.started_talking_threshold:
+            return True
+        if len(chunks) > 0:
+            start = chunks[0].get('start')
+            end = chunks[-1].get('end')
+            if start is not None and start==0:
+                return True
+            if end is not None and end==length:
+                return True
+        return False
+
+    #Override
+    def get_stt_model(self) -> STTModel:
+        return GoogleSTT()
 
 class DummyDriver(AgentDriver):
     def __init__(self,):
@@ -146,9 +182,8 @@ def test_speech_gr():
 
         audio.stream(
             AsyncVoiceStreamHandler(
+                GoogleSttDriver(),
                 DummyDriver(),
-                vad_fn=get_vad,
-                get_stt_model_fn=get_stt_model,
                 get_tts_model_fn=get_tts_model,
                 algo_options=algo_options,
                 vad_options=None,

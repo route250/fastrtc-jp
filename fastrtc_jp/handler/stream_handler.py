@@ -19,6 +19,7 @@ from fastrtc_jp.handler.voice import SttAudio, SttAudioBuffer, TtsAudio
 from fastrtc_jp.speech_to_text.util import resample_audio
 
 from fastrtc_jp.handler.vad import VadHandler
+from fastrtc_jp.handler.stt_driver import SttDriver
 from fastrtc_jp.handler.agent_task import AgentTask
 from fastrtc_jp.handler.emit import EmitManager
 from fastrtc_jp.handler.session import AgentMessage, AgentSession
@@ -54,10 +55,10 @@ class Listen(Enum):
 class AsyncVoiceStreamHandler(AsyncStreamHandler):
     logger = getLogger(f"{__name__}.{__qualname__}")
     def __init__(self,
+        stt_driver: SttDriver,
         driver: AgentDriver,
         *,
-        vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
-        get_stt_model_fn,
+        #vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
         get_tts_model_fn,
         algo_options: AlgoOptions|None=None,
         vad_options = None,
@@ -71,11 +72,12 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
             input_sample_rate = 16000,
         )
         self.stat:HdrStat = HdrStat.Init
+        self.stt_driver: SttDriver = stt_driver
         self.driver:AgentDriver = driver
-        self.vad_fn = vad_fn
+        #self.vad_fn = vad_fn
         self.algo_options = algo_options
         self.vad_options = vad_options
-        self.vad_hdr = VadHandler(vad_fn, algo_options, vad_options)
+        self.vad_hdr = VadHandler(self.stt_driver.get_vad, algo_options, vad_options)
         self.emit_manager: EmitManager = EmitManager()
         self._before_in_talking:bool = False
 
@@ -85,8 +87,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
 
         self.session = AgentSession("","","")
 
-        self.get_stt_model_fn = get_stt_model_fn
-        self._stt_service:STTService = STTService(get_stt_model_fn)
+        self._stt_service:STTService = STTService(stt_driver.get_stt_model)
 
         self.get_tts_model_fn = get_tts_model_fn
         self._tts_service:TTSService = TTSService(get_tts_model_fn)
@@ -116,11 +117,10 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     def copy(self):
         try:
             return AsyncVoiceStreamHandler(
+                self.stt_driver.copy(),
                 self.driver.copy(),
-                vad_fn=self.vad_fn,
                 algo_options = self.algo_options,
                 vad_options = self.vad_options,
-                get_stt_model_fn=self.get_stt_model_fn,
                 get_tts_model_fn=self.get_tts_model_fn,
             )
         except:
