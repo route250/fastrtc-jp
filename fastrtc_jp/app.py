@@ -19,7 +19,7 @@ import gradio as gr
 from gradio.components import ChatMessage
 from fastrtc import AdditionalOutputs, WebRTC
 
-from fastrtc import get_silero_model
+from fastrtc import get_silero_model, ReplyOnPause
 from fastrtc.speech_to_text.stt_ import STTModel
 from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 
@@ -36,7 +36,7 @@ logger = getLogger(__name__)
 
 
 vadmodel = get_silero_model()
-def get_vad(frame:tuple[int, NDArray[np.int16]] ) -> float:
+def get_vad(frame:tuple[int, NDArray[np.float32]] ) -> float:
     value,_ = vadmodel.vad(frame,None)
     return value
 

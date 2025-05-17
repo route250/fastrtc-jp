@@ -51,91 +51,43 @@ class VadHandler:
     frame_rate:int = 16000
     def __init__(
             self,
-            vad_fn:Callable[[tuple[int,NDArray[np.int16]]],float],
+            vad_fn:Callable[[tuple[int,NDArray[np.float32]]],float],
             algo_options: VadOptions|None=None,
         ):
-        self.vad_fn:Callable[[tuple[int,NDArray[np.int16]]],float] = vad_fn
+        self.receive_rate = VadHandler.frame_rate
+        self.vad_fn:Callable[[tuple[int,NDArray[np.float32]]],float] = vad_fn
         self.algo_options: VadOptions = algo_options or VadOptions()
 
         self.in_talking:bool = False
         self.rec_count:int = 0
-        self.buffer = None
-        self.audio_segment:NDArray[np.int16]|None = None
-        self.abuf:NDArray[np.int16] = np.zeros( (VadHandler.frame_rate*30), dtype=np.int16)
+        self.buffer:NDArray[np.int16] = np.zeros( (self.receive_rate*30), dtype=np.int16)
         self.start_idx:int = 0
         self.end_idx:int = 0
 
         max_duration = 0.3
         self.max_duration_length:int = int( self.receive_rate * max_duration )
 
+    def _reconfigure(self, rate:int):
+        """再設定"""
+        if rate == self.receive_rate:
+            return
+        self.logger.debug(f"reconfigure: {self.receive_rate}Hz")
+        self.receive_rate = rate
+        self.in_talking = False
+        self.rec_count = 0
+        self.buffer = np.zeros( (self.receive_rate*30), dtype=np.int16)
+        self.max_duration_length = int( self.receive_rate * 0.3 )
+        self.start_idx = 0
+        self.end_idx = 0
+
     def reset(self):
         self.in_talking = False
         self.rec_count = 0
-        self.buffer = None
         self.start_idx = 0
         self.end_idx = 0
 
     def shutdown(self):
         pass
-
-    async def old_receive(self, frame: tuple[int, NDArray[np.int16]]) ->SttAudio|None:
-        stt_audio:SttAudio|None = None
-        #----------------------
-        # vadの長さになるまで
-        #----------------------
-        # frameを分解
-        frame_rate, frame_audio = frame
-        if frame_rate != VadHandler.frame_rate or frame_audio.shape[0]!=1:
-            # 16khz mono 以外なら無視する
-            return None
-        frame_audio = np.squeeze(frame_audio) # shapeを変換 (ch,length) -> (length,)
-        self.rec_count += len(frame_audio)
-        # state更新
-        if self.buffer is None or len(self.buffer)==0:
-            self.receive_rate = frame_rate
-            self.buffer = frame_audio
-        else:
-            self.buffer = np.concatenate((self.buffer, frame_audio))
-        duration = len(self.buffer) / self.receive_rate
-        if duration < self.algo_options.audio_chunk_duration:
-            # 規定の長さ以下
-            return None
-        
-        # vad 判定 (内部で 16Khz float32に変換される)
-        vad_frame = audio_to_vad( self.receive_rate,self.buffer )
-        dur_vad = self.vad_fn( vad_frame )
-        if dur_vad<0.0 or 1.0<dur_vad:
-            self.logger.debug("<vad> duration: %s", dur_vad)
-            dur_vad = 0.0
-
-        if dur_vad > self.algo_options.started_talking_threshold and not self.in_talking:
-            self.in_talking = True
-            self.logger.debug(f"<vad> started talking vad:{dur_vad}")
-
-        # segmentに追加
-        if self.audio_segment is None or len(self.audio_segment)==0:
-            self.audio_segment = self.buffer
-        else:
-            self.audio_segment = np.concatenate((self.audio_segment, self.buffer))
-        self.buffer = None
-
-        if not self.in_talking:
-            # 無声部分の場合、最後のところだけ残しておく
-            max_duration = 0.3
-            current_duration = len(self.audio_segment) / self.receive_rate
-            if current_duration > max_duration:
-                start_idx = int((current_duration - max_duration) * self.receive_rate)
-                self.audio_segment = self.audio_segment[start_idx:]
-
-        if dur_vad < self.algo_options.speech_threshold and self.in_talking:
-            self.logger.debug(f"<vad> stop talking vad:{dur_vad}")
-            segment = self.audio_segment.reshape(1, -1)
-            self.audio_segment = None
-            length = segment.shape[1]
-            stt_audio = SttAudio(self.rec_count-length, self.rec_count, self.receive_rate, segment)
-            self.in_talking = False
-
-        return stt_audio
 
     async def receive(self, frame: tuple[int, NDArray[np.int16]]) ->SttAudio|None:
         stt_audio:SttAudio|None = None
@@ -147,13 +99,14 @@ class VadHandler:
         if frame_rate != VadHandler.frame_rate or frame_audio.shape[0]!=1:
             # 16khz mono 以外なら無視する
             return None
+        self._reconfigure(frame_rate)
         frame_audio = np.squeeze(frame_audio) # shapeを変換 (ch,length) -> (length,)
         self.rec_count += len(frame_audio)
         # add to buffer
         end_pos = self.end_idx + len(frame_audio)
-        while end_pos > len(self.abuf):
-            self.abuf = np.concatenate([self.abuf, np.zeros(VadHandler.frame_rate * 10, dtype=np.int16)])
-        self.abuf[self.end_idx:end_pos] = frame_audio
+        while end_pos > len(self.buffer):
+            self.buffer = np.concatenate([self.buffer, np.zeros(self.receive_rate * 10, dtype=np.int16)])
+        self.buffer[self.end_idx:end_pos] = frame_audio
         self.end_idx = end_pos
 
         duration = (self.end_idx-self.start_idx) / self.receive_rate
@@ -162,11 +115,11 @@ class VadHandler:
             return None
         
         # vad 判定 (内部で 16Khz float32に変換される)
-        vad_frame = audio_to_vad( self.receive_rate, self.abuf[self.start_idx:self.end_idx] )
+        vad_frame = audio_to_vad( self.receive_rate, self.buffer[self.start_idx:self.end_idx] )
         dur_vad = self.vad_fn( vad_frame )
-        if dur_vad<0.0 or 1.0<dur_vad:
-            self.logger.error("Invalid VAD result: %s. VAD result must be between 0 and 1.", dur_vad)
-            dur_vad = 0.0
+        # if dur_vad<0.0 or 1.0<dur_vad:
+        #     self.logger.error("Invalid VAD result: %s. VAD result must be between 0 and 1.", dur_vad)
+        #     dur_vad = 0.0
 
         if dur_vad > self.algo_options.started_talking_threshold and not self.in_talking:
             self.in_talking = True
@@ -176,16 +129,16 @@ class VadHandler:
             # 無声部分の場合、最後のところだけ残しておく
             over:int = self.end_idx-self.max_duration_length
             if over>0:
-                self.abuf[0:self.max_duration_length] = self.abuf[over:self.end_idx]
+                self.buffer[0:self.max_duration_length] = self.buffer[over:self.end_idx]
                 self.start_idx = 0
                 self.end_idx = self.max_duration_length
 
         else:
             if dur_vad < self.algo_options.speech_threshold:
                 self.logger.debug(f"<vad> stop talking vad:{dur_vad}")
-                segment = np.copy(self.abuf[0:self.end_idx]).reshape(1, -1)
+                segment = np.copy(self.buffer[0:self.end_idx]).reshape(1, -1)
                 stt_audio = SttAudio(self.rec_count-self.end_idx, self.rec_count, self.receive_rate, segment)
-                self.abuf[0:self.max_duration_length] = self.abuf[self.end_idx-self.max_duration_length:self.end_idx]
+                self.buffer[0:self.max_duration_length] = self.buffer[self.end_idx-self.max_duration_length:self.end_idx]
                 self.start_idx = 0
                 self.end_idx = self.max_duration_length
                 self.in_talking = False

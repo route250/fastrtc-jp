@@ -54,7 +54,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     def __init__(self,
         driver: AgentDriver,
         *,
-        vad_fn:Callable[[tuple[int,NDArray[np.int16]]],float],
+        vad_fn:Callable[[tuple[int,NDArray[np.float32]]],float],
         get_stt_model_fn,
         get_tts_model_fn,
         vad_options: VadOptions|None=None,
