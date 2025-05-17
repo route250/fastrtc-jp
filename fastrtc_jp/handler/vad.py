@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 import librosa
 
 from fastrtc.utils import audio_to_float32, audio_to_int16
+from fastrtc.reply_on_pause import AlgoOptions
 
 from fastrtc_jp.handler.voice import SttAudio
 from fastrtc_jp.speech_to_text.util import resample_audio
@@ -38,25 +39,20 @@ def audio_to_vad(sampling_rate:int, audio:np.ndarray) ->tuple[int,np.ndarray]:
         audio_f32 = np.zeros((0),dtype=np.float32)
     return (sr,audio_f32)
 
-@dataclass
-class VadOptions:
-    """Algorithm options."""
-    audio_chunk_duration: float = 0.6
-    started_talking_threshold: float = 0.2
-    speech_threshold: float = 0.1
-
 class VadHandler:
 
     logger = getLogger(f"{__name__}.{__qualname__}")
     frame_rate:int = 16000
     def __init__(
             self,
-            vad_fn:Callable[[tuple[int,NDArray[np.float32]]],float],
-            algo_options: VadOptions|None=None,
+            vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
+            algo_options: AlgoOptions|None=None,
+            vad_options = None
         ):
         self.receive_rate = VadHandler.frame_rate
-        self.vad_fn:Callable[[tuple[int,NDArray[np.float32]]],float] = vad_fn
-        self.algo_options: VadOptions = algo_options or VadOptions()
+        self.vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool] = vad_fn
+        self.algo_options: AlgoOptions = algo_options or AlgoOptions()
+        self.vad_options = vad_options
 
         self.in_talking:bool = False
         self.rec_count:int = 0
@@ -96,7 +92,7 @@ class VadHandler:
         #----------------------
         # frameを分解
         frame_rate, frame_audio = frame
-        if frame_rate != VadHandler.frame_rate or frame_audio.shape[0]!=1:
+        if frame_rate != VadHandler.frame_rate or len(frame_audio.shape)!=2 or frame_audio.shape[0]!=1:
             # 16khz mono 以外なら無視する
             return None
         self._reconfigure(frame_rate)
@@ -113,15 +109,14 @@ class VadHandler:
         if duration < self.algo_options.audio_chunk_duration:
             # 規定の長さ以下
             return None
-        
-        # vad 判定 (内部で 16Khz float32に変換される)
-        vad_frame = audio_to_vad( self.receive_rate, self.buffer[self.start_idx:self.end_idx] )
-        dur_vad = self.vad_fn( vad_frame )
-        # if dur_vad<0.0 or 1.0<dur_vad:
-        #     self.logger.error("Invalid VAD result: %s. VAD result must be between 0 and 1.", dur_vad)
-        #     dur_vad = 0.0
+        print(" .",end="")
 
-        if dur_vad > self.algo_options.started_talking_threshold and not self.in_talking:
+        # vad 判定 
+        vad_frame = audio_to_float32( self.buffer[self.start_idx:self.end_idx] )
+        self.start_idx = self.end_idx
+        dur_vad:bool = self.vad_fn( self.in_talking, self.receive_rate,vad_frame, self.algo_options, self.vad_options)
+
+        if dur_vad and not self.in_talking:
             self.in_talking = True
             self.logger.debug(f"<vad> started talking vad:{dur_vad}")
 
@@ -130,16 +125,16 @@ class VadHandler:
             over:int = self.end_idx-self.max_duration_length
             if over>0:
                 self.buffer[0:self.max_duration_length] = self.buffer[over:self.end_idx]
-                self.start_idx = 0
+                self.start_idx = self.max_duration_length
                 self.end_idx = self.max_duration_length
 
         else:
-            if dur_vad < self.algo_options.speech_threshold:
+            if not dur_vad:
                 self.logger.debug(f"<vad> stop talking vad:{dur_vad}")
                 segment = np.copy(self.buffer[0:self.end_idx]).reshape(1, -1)
                 stt_audio = SttAudio(self.rec_count-self.end_idx, self.rec_count, self.receive_rate, segment)
                 self.buffer[0:self.max_duration_length] = self.buffer[self.end_idx-self.max_duration_length:self.end_idx]
-                self.start_idx = 0
+                self.start_idx = self.max_duration_length
                 self.end_idx = self.max_duration_length
                 self.in_talking = False
 

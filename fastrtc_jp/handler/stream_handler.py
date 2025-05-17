@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import traceback
 from types import CoroutineType
 from typing import Protocol, Type, Callable, Any, Literal, AsyncGenerator
 from logging import getLogger
@@ -9,6 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from fastrtc import AsyncStreamHandler, AdditionalOutputs, wait_for_item
+from fastrtc.reply_on_pause import AlgoOptions
 from fastrtc.tracks import EmitType
 
 from fastrtc_jp.handler.agent_driver import AgentDriver
@@ -16,7 +18,7 @@ from fastrtc_jp.handler.service import STTService, TTSService
 from fastrtc_jp.handler.voice import SttAudio, SttAudioBuffer, TtsAudio
 from fastrtc_jp.speech_to_text.util import resample_audio
 
-from fastrtc_jp.handler.vad import VadOptions, VadHandler
+from fastrtc_jp.handler.vad import VadHandler
 from fastrtc_jp.handler.agent_task import AgentTask
 from fastrtc_jp.handler.emit import EmitManager
 from fastrtc_jp.handler.session import AgentMessage, AgentSession
@@ -54,10 +56,11 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     def __init__(self,
         driver: AgentDriver,
         *,
-        vad_fn:Callable[[tuple[int,NDArray[np.float32]]],float],
+        vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
         get_stt_model_fn,
         get_tts_model_fn,
-        vad_options: VadOptions|None=None,
+        algo_options: AlgoOptions|None=None,
+        vad_options = None,
         wakeup_words:list[str]|None=None
     ):
         """初期化"""
@@ -70,8 +73,9 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         self.stat:HdrStat = HdrStat.Init
         self.driver:AgentDriver = driver
         self.vad_fn = vad_fn
+        self.algo_options = algo_options
         self.vad_options = vad_options
-        self.vad_hdr = VadHandler(vad_fn, vad_options)
+        self.vad_hdr = VadHandler(vad_fn, algo_options, vad_options)
         self.emit_manager: EmitManager = EmitManager()
         self._before_in_talking:bool = False
 
@@ -114,6 +118,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
             return AsyncVoiceStreamHandler(
                 self.driver.copy(),
                 vad_fn=self.vad_fn,
+                algo_options = self.algo_options,
                 vad_options = self.vad_options,
                 get_stt_model_fn=self.get_stt_model_fn,
                 get_tts_model_fn=self.get_tts_model_fn,
@@ -192,6 +197,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyboardInterrupt, SystemExit):
             pass
         except:
+            traceback.print_exc()
             self.logger.exception("error in receive")
 
 

@@ -1,3 +1,4 @@
+import math
 import sys,os
 from pathlib import Path
 import platform
@@ -19,7 +20,10 @@ import gradio as gr
 from gradio.components import ChatMessage
 from fastrtc import AdditionalOutputs, WebRTC
 
-from fastrtc import get_silero_model, ReplyOnPause
+from fastrtc import get_silero_model, ReplyOnPause, AlgoOptions
+from fastrtc.reply_on_pause import AlgoOptions
+from fastrtc.pause_detection.silero import SileroVadOptions
+from fastrtc.utils import AudioChunk
 from fastrtc.speech_to_text.stt_ import STTModel
 from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 
@@ -28,7 +32,6 @@ from fastrtc_jp.speech_to_text.sr_google import GoogleSTT
 from fastrtc_jp.text_to_speech.gtts import GTTSModel
 from fastrtc_jp.handler.stream_handler import AsyncVoiceStreamHandler
 from fastrtc_jp.utils.util import load_dotenv, setup_logger
-from fastrtc_jp.handler.vad import VadOptions
 
 from fastrtc_jp.handler.dummy import dummy_response
 
@@ -36,9 +39,23 @@ logger = getLogger(__name__)
 
 
 vadmodel = get_silero_model()
-def get_vad(frame:tuple[int, NDArray[np.float32]] ) -> float:
-    value,_ = vadmodel.vad(frame,None)
-    return value
+def get_vad(state:bool, sr:int, audio:NDArray[np.int16]|NDArray[np.float32], algo_options:AlgoOptions, options ) -> bool:
+    length = audio.shape[0]
+    secs = length / sr
+    value,chunks = vadmodel.vad( (sr,audio),options)
+    if math.isnan(value) or math.isinf(value):
+        logger.warning("VAD value is NaN or Inf")
+        return False
+    if value>algo_options.started_talking_threshold:
+        return True
+    if len(chunks) > 0:
+        start = chunks[0].get('start')
+        end = chunks[-1].get('end')
+        if start is not None and start==0:
+            return True
+        if end is not None and end==length:
+            return True
+    return False
 
 def get_stt_model() -> STTModel:
     return GoogleSTT()
@@ -121,7 +138,7 @@ def test_speech_gr():
             with gr.Column(scale=3):
                 chat_area = gr.Chatbot(label="chat", type="messages")
 
-        vad_options = VadOptions(
+        algo_options = AlgoOptions(
             audio_chunk_duration=0.6,
             started_talking_threshold=0.5,
             speech_threshold=0.1,
@@ -133,7 +150,8 @@ def test_speech_gr():
                 vad_fn=get_vad,
                 get_stt_model_fn=get_stt_model,
                 get_tts_model_fn=get_tts_model,
-                vad_options=vad_options,
+                algo_options=algo_options,
+                vad_options=None,
             ),
             inputs=[audio,dropdown],
             outputs=[audio],
