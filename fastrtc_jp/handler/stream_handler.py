@@ -188,7 +188,6 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 self.emit_manager.set_pause(True)
             if stt_audio:
                 self.stt_queue.put_nowait(stt_audio)
-                self.emit_manager.set_pause(False)
 
             if self._before_in_talking != self.vad_hdr.in_talking:
                 self._before_in_talking = self.vad_hdr.in_talking
@@ -264,6 +263,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                                 self.wakeup_time = time.time()
 
                 if not self.vad_hdr.in_talking and self.stt_queue.qsize()==0:
+                    self.emit_manager.set_pause(False)
                     if len(buffer_data)>0:
                         before_task = AgentTask(self.session, self.driver, buffer_data.copy_to_list() )
                         buffer_data.reset()
