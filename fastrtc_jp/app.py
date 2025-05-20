@@ -27,49 +27,28 @@ from fastrtc.utils import AudioChunk
 from fastrtc.speech_to_text.stt_ import STTModel
 from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 
-from fastrtc_jp.handler.agent_driver import AgentSession, AgentDriver
+from fastrtc_jp.handler.agent_handler import AgentSession, AgentHandler
 from fastrtc_jp.speech_to_text.sr_google import GoogleSTT
 from fastrtc_jp.text_to_speech.gtts import GTTSModel
-from fastrtc_jp.handler.stream_handler import AsyncVoiceStreamHandler
+from fastrtc_jp.handler.stream_handler import VadOptions, AsyncVoiceStreamHandler
 from fastrtc_jp.utils.util import load_dotenv, setup_logger
-from fastrtc_jp.handler.stt_driver import SttDriver
+from fastrtc_jp.handler.vad import VadOptions, VadHandler
+from fastrtc_jp.handler.stt_handler import SttHandler
 
 from fastrtc_jp.handler.dummy import dummy_response
 
 logger = getLogger(__name__)
 
 
-vadmodel = get_silero_model()
-def get_vad(state:bool, sr:int, audio:NDArray[np.int16]|NDArray[np.float32], algo_options:AlgoOptions, options ) -> bool:
-    length = audio.shape[0]
-    secs = length / sr
-    value,chunks = vadmodel.vad( (sr,audio),options)
-    if math.isnan(value) or math.isinf(value):
-        logger.warning("VAD value is NaN or Inf")
-        return False
-    if value>algo_options.started_talking_threshold:
-        return True
-    if len(chunks) > 0:
-        start = chunks[0].get('start')
-        end = chunks[-1].get('end')
-        if start is not None and start==0:
-            return True
-        if end is not None and end==length:
-            return True
-    return False
-
-def get_stt_model() -> STTModel:
-    return GoogleSTT()
-
 def get_tts_model() -> TTSModel:
     return GTTSModel()
 
-class GoogleSttDriver(SttDriver):
+class GoogleSttHandler(SttHandler):
     def __init__(self,):
         pass
 
     #Override
-    def copy(self) ->"SttDriver":
+    def copy(self) ->"SttHandler":
         return self
 
     #Override
@@ -77,34 +56,25 @@ class GoogleSttDriver(SttDriver):
         pass
 
     #Override
-    def get_vad(self,state:bool, sr:int, audio:NDArray[np.int16]|NDArray[np.float32], algo_options:AlgoOptions, options ) -> bool:
-        length = audio.shape[0]
-        secs = length / sr
-        value,chunks = vadmodel.vad( (sr,audio),options)
-        if math.isnan(value) or math.isinf(value):
-            logger.warning("VAD value is NaN or Inf")
-            return False
-        if value>algo_options.started_talking_threshold:
-            return True
-        if len(chunks) > 0:
-            start = chunks[0].get('start')
-            end = chunks[-1].get('end')
-            if start is not None and start==0:
-                return True
-            if end is not None and end==length:
-                return True
-        return False
-
-    #Override
     def get_stt_model(self) -> STTModel:
         return GoogleSTT()
 
-class DummyDriver(AgentDriver):
+    #Override
+    def is_wakeup(self,contents:list[str]) -> bool:
+        wakeup_words = ["おはよう", "こんにちは", "こんばんは"]
+        for stt_result in contents:
+            if any(w in stt_result for w in wakeup_words):
+                print(f"GoogleSttHandler: is_wakeup: {contents} True",flush=True)
+                return True
+        print(f"GoogleSttHandler: is_wakeup: {contents} False",flush=True)
+        return False
+
+class DummyDriver(AgentHandler):
     def __init__(self,):
         pass
 
     #Override
-    def copy(self) ->"AgentDriver":
+    def copy(self) ->"AgentHandler":
         return self
 
     #Override
@@ -174,7 +144,7 @@ def test_speech_gr():
             with gr.Column(scale=3):
                 chat_area = gr.Chatbot(label="chat", type="messages")
 
-        algo_options = AlgoOptions(
+        algo_options = VadOptions(
             audio_chunk_duration=0.6,
             started_talking_threshold=0.5,
             speech_threshold=0.1,
@@ -182,11 +152,10 @@ def test_speech_gr():
 
         audio.stream(
             AsyncVoiceStreamHandler(
-                GoogleSttDriver(),
+                GoogleSttHandler(),
                 DummyDriver(),
                 get_tts_model_fn=get_tts_model,
-                algo_options=algo_options,
-                vad_options=None,
+                vad_options=algo_options,
             ),
             inputs=[audio,dropdown],
             outputs=[audio],

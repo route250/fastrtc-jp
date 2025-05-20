@@ -4,9 +4,9 @@ from typing import AsyncGenerator
 from fastrtc_jp.handler.session import AgentSession
 
 
-class AgentDriver(ABC):
+class AgentHandler(ABC):
 
-    def copy(self) ->"AgentDriver":
+    def copy(self) ->"AgentHandler":
         return self
 
     async def start_up(self):

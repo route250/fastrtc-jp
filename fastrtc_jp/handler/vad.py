@@ -2,20 +2,32 @@
 import asyncio
 from dataclasses import dataclass
 import inspect
-from typing import Protocol, Type, Callable, Any, Literal, AsyncGenerator
+import math
+from typing import Protocol, Type, Callable, Any, Literal, AsyncGenerator, TYPE_CHECKING
 from logging import getLogger
 
 import numpy as np
 from numpy.typing import NDArray
 import librosa
 
+from fastrtc import get_silero_model
+from fastrtc.pause_detection.silero import SileroVadOptions
 from fastrtc.utils import audio_to_float32, audio_to_int16
-from fastrtc.reply_on_pause import AlgoOptions
 
 from fastrtc_jp.handler.voice import SttAudio
 from fastrtc_jp.speech_to_text.util import resample_audio
 
 logger = getLogger(__name__)
+
+@dataclass
+class VadOptions:
+    """Algorithm options."""
+    threshold: float = 0.5
+    audio_chunk_duration: float = 0.6
+    started_talking_threshold: float = 0.2
+    speech_threshold: float = 0.1
+    grace_period_duration: float = 15.0
+    listen_mode_duration: float = 45.0
 
 def get_warmupdata(*,sample_rate:int=16000,duration:float=0.4,frequency:float=440.0,ch:int=2) ->tuple[int, NDArray[np.int16 | np.float32]]:
     """音声データを生成する"""
@@ -45,14 +57,11 @@ class VadHandler:
     frame_rate:int = 16000
     def __init__(
             self,
-            vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
-            algo_options: AlgoOptions|None=None,
-            vad_options = None
+            vad_options: VadOptions|None=None,
         ):
         self.receive_rate = VadHandler.frame_rate
-        self.vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool] = vad_fn
-        self.algo_options: AlgoOptions = algo_options or AlgoOptions()
-        self.vad_options = vad_options
+        self.vadmodel = self.get_vad_model()
+        self.vad_options: VadOptions = vad_options or VadOptions()
 
         self.in_talking:bool = False
         self.rec_count:int = 0
@@ -106,14 +115,14 @@ class VadHandler:
         self.end_idx = end_pos
 
         duration = (self.end_idx-self.start_idx) / self.receive_rate
-        if duration < self.algo_options.audio_chunk_duration:
+        if duration < self.vad_options.audio_chunk_duration:
             # 規定の長さ以下
             return None
 
         # vad 判定 
         vad_frame = audio_to_float32( self.buffer[self.start_idx:self.end_idx] )
         self.start_idx = self.end_idx
-        dur_vad:bool = self.vad_fn( self.in_talking, self.receive_rate,vad_frame, self.algo_options, self.vad_options)
+        dur_vad:bool = self.vad( self.receive_rate,vad_frame )
 
         if dur_vad and not self.in_talking:
             self.in_talking = True
@@ -138,3 +147,25 @@ class VadHandler:
                 self.in_talking = False
 
         return stt_audio
+
+    def get_vad_model(self):
+        return get_silero_model()
+
+    def vad(self, sr:int, audio:NDArray[np.int16]|NDArray[np.float32] ) -> bool:
+        length = audio.shape[0]
+        secs = length / sr
+        opt:SileroVadOptions = SileroVadOptions(threshold=self.vad_options.threshold)
+        value,chunks = self.vadmodel.vad( (sr,audio),opt)
+        if math.isnan(value) or math.isinf(value):
+            self.logger.warning("VAD value is NaN or Inf")
+            return False
+        if value>self.vad_options.started_talking_threshold:
+            return True
+        if len(chunks) > 0:
+            start = chunks[0].get('start')
+            end = chunks[-1].get('end')
+            if start is not None and start==0:
+                return True
+            if end is not None and end==length:
+                return True
+        return False

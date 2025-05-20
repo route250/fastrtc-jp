@@ -8,7 +8,7 @@ from typing import Any, AsyncIterator, AsyncIterable, Iterable, Protocol
 
 from numpy.typing import NDArray
 
-from fastrtc_jp.handler.agent_driver import AgentDriver
+from fastrtc_jp.handler.agent_handler import AgentHandler
 from fastrtc_jp.handler.session import AgentMessage, AgentSession
 
 import typing
@@ -47,9 +47,9 @@ class AgentTask:
 
     logger = getLogger(f"{__name__}.{__qualname__}")
 
-    def __init__(self, session:AgentSession, driver:AgentDriver, stt:list['SttAudio']):
+    def __init__(self, session:AgentSession, driver:AgentHandler, stt:list['SttAudio']):
         self.session:AgentSession = session
-        self.driver:AgentDriver = driver
+        self.driver:AgentHandler = driver
         self.stt:list['SttAudio'] = stt
         self.stat:AgentStat = AgentStat.NOT_START
         # 生成した文字列セグメントの数

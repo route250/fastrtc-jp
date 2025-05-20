@@ -1,8 +1,10 @@
 import asyncio
 import inspect
+import math
 import traceback
 from types import CoroutineType
 from typing import Protocol, Type, Callable, Any, Literal, AsyncGenerator
+from dataclasses import dataclass
 from logging import getLogger
 from enum import Enum
 import time
@@ -10,20 +12,18 @@ import numpy as np
 from numpy.typing import NDArray
 
 from fastrtc import AsyncStreamHandler, AdditionalOutputs, wait_for_item
-from fastrtc.reply_on_pause import AlgoOptions
 from fastrtc.tracks import EmitType
 
-from fastrtc_jp.handler.agent_driver import AgentDriver
+from fastrtc_jp.handler.agent_handler import AgentHandler
 from fastrtc_jp.handler.service import STTService, TTSService
 from fastrtc_jp.handler.voice import SttAudio, SttAudioBuffer, TtsAudio
 from fastrtc_jp.speech_to_text.util import resample_audio
 
-from fastrtc_jp.handler.vad import VadHandler
-from fastrtc_jp.handler.stt_driver import SttDriver
+from fastrtc_jp.handler.vad import VadOptions, VadHandler
+from fastrtc_jp.handler.stt_handler import SttHandler
 from fastrtc_jp.handler.agent_task import AgentTask
 from fastrtc_jp.handler.emit import EmitManager
 from fastrtc_jp.handler.session import AgentMessage, AgentSession
-
 
 def clear_queue(q:asyncio.Queue):
     try:
@@ -55,14 +55,14 @@ class Listen(Enum):
 class AsyncVoiceStreamHandler(AsyncStreamHandler):
     logger = getLogger(f"{__name__}.{__qualname__}")
     def __init__(self,
-        stt_driver: SttDriver,
-        driver: AgentDriver,
+        stt_hdr: SttHandler,
+        driver: AgentHandler,
         *,
         #vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
         get_tts_model_fn,
-        algo_options: AlgoOptions|None=None,
-        vad_options = None,
-        wakeup_words:list[str]|None=None
+        vad_hdr:VadHandler|None=None,
+        vad_options:VadOptions|None = None,
+        # wakeup_words:list[str]|None=None
     ):
         """初期化"""
         super().__init__(
@@ -72,12 +72,14 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
             input_sample_rate = 16000,
         )
         self.stat:HdrStat = HdrStat.Init
-        self.stt_driver: SttDriver = stt_driver
-        self.driver:AgentDriver = driver
-        #self.vad_fn = vad_fn
-        self.algo_options = algo_options
-        self.vad_options = vad_options
-        self.vad_hdr = VadHandler(self.stt_driver.get_vad, algo_options, vad_options)
+        self.stt_hdr: SttHandler = stt_hdr
+        self.driver:AgentHandler = driver
+        if vad_hdr is None:
+            self.vad_options:VadOptions = vad_options or VadOptions()
+            self.vad_hdr = VadHandler(self.vad_options)
+        else:
+            self.vad_hdr = vad_hdr
+            self.vad_options = vad_options or vad_hdr.vad_options
         self.emit_manager: EmitManager = EmitManager()
         self._before_in_talking:bool = False
 
@@ -87,14 +89,14 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
 
         self.session = AgentSession("","","")
 
-        self._stt_service:STTService = STTService(stt_driver.get_stt_model)
+        self._stt_service:STTService = STTService(stt_hdr.get_stt_model)
 
         self.get_tts_model_fn = get_tts_model_fn
         self._tts_service:TTSService = TTSService(get_tts_model_fn)
 
         self._task_list:list[asyncio.Task] = []
 
-        self.wakeup_words: list[str] = [w for w in (wakeup_words or []) if w]
+        #self.wakeup_words: list[str] = [w for w in (wakeup_words or []) if w]
         self.wakeup_status:Listen = Listen.IDLE
         self.wakeup_time:float = time.time()
         self._last_emit_time:float = time.time()
@@ -117,9 +119,8 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     def copy(self):
         try:
             return AsyncVoiceStreamHandler(
-                self.stt_driver.copy(),
+                self.stt_hdr.copy(),
                 self.driver.copy(),
-                algo_options = self.algo_options,
                 vad_options = self.vad_options,
                 get_tts_model_fn=self.get_tts_model_fn,
             )
@@ -153,6 +154,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     #Override
     async def start_up(self) -> None:
         try:
+            await self.stt_hdr.start_up()
             await self.driver.start_up()
             await super().start_up()
             # 非同期タスクを開始
@@ -207,24 +209,31 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
             if segment is None:
                 await asyncio.sleep(0.1)
             elif isinstance(segment,tuple) and len(segment)>=2 and isinstance(segment[1],np.ndarray):
-                self._last_emit_time = time.time()
+                self._keep_talking()
             return segment
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyboardInterrupt, SystemExit):
             pass
         except Exception as ex:
             self.logger.exception(f"Error in emit: {ex}")
-    
+
+    def _keep_talking(self):
+        self.wakeup_status = Listen.TALKING
+        self._last_emit_time = time.time()
+
     async def _fn_task_timer(self):
         try:
             while self.stat == HdrStat.Running:
                 await asyncio.sleep(1.0)
                 if self.wakeup_status == Listen.TALKING:
                     aa = time.time() - self._last_emit_time
-                    if aa>5.0:
+                    if aa>self.vad_options.grace_period_duration:
+                        print(f"<stt> timeout {aa} COOLDOWN")
                         self.wakeup_status = Listen.COOLDOWN
+                        self._last_emit_time = time.time()
                 elif self.wakeup_status == Listen.COOLDOWN:
                     aa = time.time() - self._last_emit_time
-                    if aa>15.0:
+                    if aa>self.vad_options.listen_mode_duration:
+                        print(f"<stt> timeout {aa} IDLE")
                         self.wakeup_status = Listen.IDLE
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyboardInterrupt, SystemExit):
             pass
@@ -258,11 +267,11 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                         await self.emit_manager.ads( AdditionalOutputs([],messages))
                         # listen mode switch
                         if self.wakeup_status==Listen.IDLE or self.wakeup_status==Listen.COOLDOWN:
-                            if not self.wakeup_words or any(w in stt_result for w in self.wakeup_words):
-                                self.wakeup_status = Listen.TALKING
-                                self.wakeup_time = time.time()
+                            # if not self.wakeup_words or any(w in stt_result for w in self.wakeup_words):
+                            if self.stt_hdr.is_wakeup([stt_result]):
+                                self._keep_talking()
 
-                if not self.vad_hdr.in_talking and self.stt_queue.qsize()==0:
+                if self.wakeup_status!=Listen.IDLE and not self.vad_hdr.in_talking and self.stt_queue.qsize()==0:
                     self.emit_manager.set_pause(False)
                     if len(buffer_data)>0:
                         before_task = AgentTask(self.session, self.driver, buffer_data.copy_to_list() )
@@ -289,11 +298,13 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 args = self.latest_args
                 print(f"<agent> args {args}")
                 print(f"<agent> get from tts_quque")
+                self._keep_talking()
                 no:int = 0
                 async for words in agent_task.execute():
                     tts_audio = TtsAudio(agent_task, no, words )
                     print(f"<agent> put to tts_queue {no} {tts_audio.ai_response}")
                     self.tts_queue.put_nowait(tts_audio)
+                    self._keep_talking()
                     no+=1
                     await asyncio.sleep(0.05)
                 self.agent_queue.task_done()
@@ -319,6 +330,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                     tts_data.set_audio(result)
                     # 処理したデータをq1に送る
                     await self.emit_manager.put(tts_data)
+                    self._keep_talking()
                     await asyncio.sleep(0.05)
                 # タスク完了を通知
                 self.tts_queue.task_done()
