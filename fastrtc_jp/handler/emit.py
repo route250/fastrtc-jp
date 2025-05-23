@@ -44,7 +44,7 @@ class EmitManager:
     async def get_emit_segment(self):
         ads:AdditionalOutputs|None = await wait_for_item(self.ads_queue,0.01)
         if ads is not None:
-            print("get additional===")
+            print("[EMIT] additional outputs")
             return ads
 
         await self._seek_next()

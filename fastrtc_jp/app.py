@@ -159,7 +159,7 @@ def test_speech_gr():
             ),
             inputs=[audio,dropdown],
             outputs=[audio],
-            time_limit=None
+            time_limit=None,
         )
         def process_outputs(*args) ->tuple:
             try:
@@ -191,7 +191,5 @@ def test_speech_gr():
 
 if __name__ == "__main__":
     load_dotenv()
-    # os.environ["AGNO_MONITOR"] = "false"
-    # os.environ["AGNO_TELEMETRY"] = "false" # テレメトリを無効化
     setup_logger()
     test_speech_gr()

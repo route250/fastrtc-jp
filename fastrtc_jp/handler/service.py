@@ -20,6 +20,7 @@ RUNNING = 3  # Process is running
 STOPPING = 4  # Process is in the process of stopping
 STOPPED = 5  # Process has stopped
 
+
 class ServiceProcess:
     """
     Base class for service processes using multiprocessing and async communication.
@@ -90,15 +91,25 @@ class ServiceProcess:
         """
         Put data into the input queue and asynchronously wait for a result from the output queue.
         """
-        self.start_up()
-        self.inp.put_nowait(data)
-        while not self.is_stopped():
-            try:
-                ret = self.out.get_nowait()
-                return ret
-            except Empty:
-                pass
-            await asyncio.sleep(0.1)
+        if self.is_stopped():
+            raise EOFError("Service is closed")
+        try:
+            self.start_up()
+            self.inp.put_nowait(data)
+            while not self.is_stopped():
+                try:
+                    ret = self.out.get_nowait()
+                    if ret is None:
+                        raise EOFError("Service is None")
+                    return ret
+                except Empty:
+                    pass
+                await asyncio.sleep(0.1)
+        except EOFError as ex:
+            raise ex
+        except Exception as ex:
+            self.logger.exception("Exception during put and get.")
+            raise EOFError("Exception during put and get.") from ex
 
 
 class STTService(ServiceProcess):
