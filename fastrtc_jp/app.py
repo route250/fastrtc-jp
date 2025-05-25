@@ -166,8 +166,9 @@ def test_speech_gr():
                 # print(f"追加出力の型: {type(args)}, 値: {args}",flush=True)
                 
                 if len(args)>=2:
+                    status = args[0] if isinstance(args[0],dict) else {}
+                    hist = []
                     if isinstance(args[1],list) and len(args[1])>0 and isinstance(args[1][0],dict):
-                        hist = []
                         for m in args[1]:
                             if isinstance(m,dict):
                                 role = m.get('role')
@@ -176,7 +177,7 @@ def test_speech_gr():
                                     hist.append( ChatMessage(role=role,content=content))
                         datestr = datetime.now().strftime("%Y-%m-%d")
                         timestr = datetime.now().strftime("%H:%M:%S")
-                        return {'date':datestr,'time':timestr},hist
+                    return status,hist
             except Exception as ex:
                 print(f"ERROR:{ex}",flush=True)
             return {},[ChatMessage(role='user', content='empty1')]

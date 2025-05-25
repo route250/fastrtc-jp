@@ -26,7 +26,7 @@ class VadOptions:
     audio_chunk_duration: float = 0.6
     started_talking_threshold: float = 0.2
     speech_threshold: float = 0.1
-    grace_period_duration: float = 15.0
+    grace_period_duration: float = 5.0
     listen_mode_duration: float = 45.0
 
 def get_warmupdata(*,sample_rate:int=16000,duration:float=0.4,frequency:float=440.0,ch:int=2) ->tuple[int, NDArray[np.int16 | np.float32]]:
