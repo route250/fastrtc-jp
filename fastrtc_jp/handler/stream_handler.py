@@ -260,7 +260,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
 
 
     def _keep_status(self):
-        if self.get_stat()==HdrStat.Wait or self.get_stat()==HdrStat.Thinking or self.get_stat()==HdrStat.Talking:
+        if self.get_stat()==HdrStat.Idle or self.get_stat()==HdrStat.Wait or self.get_stat()==HdrStat.Thinking or self.get_stat()==HdrStat.Talking:
             self._last_emit_time = time.time()
 
 
@@ -268,7 +268,13 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         try:
             while self.is_running():
                 await asyncio.sleep(1.0)
-                if self.get_stat()==HdrStat.Thinking or self.get_stat()==HdrStat.Talking:
+                if self.get_stat()==HdrStat.Idle:
+                    if self._in_listen and not self.vad_hdr.in_talking and self.stt_queue.qsize()==0:
+                        bb = time.time() - self._last_emit_time
+                        if  bb > 3.0:
+                            self.set_lisetn(False)
+                            print(f"<stt> timeout {bb} Idle")
+                elif self.get_stat()==HdrStat.Thinking or self.get_stat()==HdrStat.Talking:
                     aa = time.time() - self._last_emit_time
                     if aa>self.vad_options.grace_period_duration:
                         print(f"<stt> timeout {aa} Talking")
