@@ -151,6 +151,15 @@ class VadHandler:
     def get_vad_model(self):
         return get_silero_model()
 
+    def get_threshold(self) -> float:
+        """VADのしきい値を取得"""
+        return self.vad_options.threshold
+
+    async def set_threshold(self, threshold:float) -> None:
+        """VADのしきい値を設定"""
+        if isinstance(threshold,float):
+            self.vad_options.threshold = min(max(0.0,float(threshold)),1.0)
+
     def vad(self, sr:int, audio:NDArray[np.int16]|NDArray[np.float32] ) -> bool:
         length = audio.shape[0]
         secs = length / sr

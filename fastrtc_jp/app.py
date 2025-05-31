@@ -90,7 +90,7 @@ class DummyDriver(AgentHandler):
         pass
 
     #Override
-    async def start_session(self, session:AgentSession) -> AgentSession:
+    async def start_session(self, session:AgentSession, profile) -> AgentSession:
         return session
 
     #Override
@@ -140,6 +140,8 @@ def test_speech_gr():
                         value="Option 1"
                     )
                 with gr.Row(scale=1):
+                    slider = gr.Slider(minimum=0.0, maximum=1.0, value=0.5, step=0.1, label="Threshold")
+                with gr.Row(scale=1):
                     audio = WebRTC(label="Stream",mode="send-receive", modality="audio" )
             with gr.Column(scale=3):
                 chat_area = gr.Chatbot(label="chat", type="messages")
@@ -157,7 +159,7 @@ def test_speech_gr():
                 get_tts_model_fn=get_tts_model,
                 vad_options=algo_options,
             ),
-            inputs=[audio,dropdown],
+            inputs=[audio,dropdown,slider],
             outputs=[audio],
             time_limit=None,
         )

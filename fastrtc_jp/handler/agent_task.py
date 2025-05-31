@@ -47,8 +47,8 @@ class AgentTask:
 
     logger = getLogger(f"{__name__}.{__qualname__}")
 
-    def __init__(self, session:AgentSession, driver:AgentHandler, stt:list['SttAudio']):
-        self.session:AgentSession = session
+    def __init__(self, driver:AgentHandler, stt:list['SttAudio']):
+        self.session:AgentSession|None = None
         self.driver:AgentHandler = driver
         self.stt:list['SttAudio'] = stt
         self.stat:AgentStat = AgentStat.NOT_START
@@ -67,12 +67,13 @@ class AgentTask:
         """再生が完了した文章をhistoryに追加する"""
         if self.is_canceled():
             return
-        if self.accepted<=0:
-            # 初回は、user_inputも追加する
-            for s in self.stt:
-                if s.user_input:
-                    self.session.add_user(s.user_input)
-        self.session.add_ai(ai_response)
+        if self.session:
+            if self.accepted<=0:
+                # 初回は、user_inputも追加する
+                for s in self.stt:
+                    if s.user_input:
+                        self.session.add_user(s.user_input)
+            self.session.add_ai(ai_response)
         self.ai_response += ai_response
         self.accepted += 1
         if self.stat==AgentStat.PLAYING and self.seg_total<=self.accepted:
@@ -95,7 +96,7 @@ class AgentTask:
     def is_canceled(self) ->bool:
         return self.done_play.is_set()
 
-    async def execute(self):
+    async def execute(self,session:AgentSession):
         """AGENTを実行する"""
         if self.is_canceled():
             print(f"[AGENT] cancelled")
@@ -103,12 +104,12 @@ class AgentTask:
             return
         try:
             self.stat = AgentStat.RUNNING
-            ses:AgentSession = self.session
-            await self.driver.before_run(ses)
+            self.session = session
+            await self.driver.before_run(session)
             committed = False
             # llmへの入力を作成する
             user_input:str = "\n".join( [ a.user_input for a in self.stt if a.user_input] )
-            prompt_str:str = self.session.make_input( user_input )
+            prompt_str:str = session.make_input( user_input )
             print(f"[AGENT] hist")
             print(f"{prompt_str.replace("\n\n","\n")}")
             # llmを実行 レスポンスを非同期で取得する
@@ -116,7 +117,7 @@ class AgentTask:
             buffer:str=""
             idx:int=0
             print(f"[AGENT] start")
-            async for run_res in self.driver.run(ses, user_input): # type: ignore
+            async for run_res in self.driver.run(session, user_input): # type: ignore
                 full_content += run_res
                 if not self.is_canceled():
                     buffer+=run_res
@@ -138,7 +139,7 @@ class AgentTask:
             if self.seg_total>0:
                 if not self.is_canceled():
                     print(f"[AGENT] commit")
-                    await self.driver.commit(ses,full_content, self.ai_response)
+                    await self.driver.commit(session,full_content, self.ai_response)
                     committed = True
                 else:
                     print(f"[AGENT] cancel")
@@ -152,10 +153,10 @@ class AgentTask:
             if not committed:
                 # なかったことにする
                 print(f"[AGENT] rollback")
-                await self.driver.rollback(ses)
+                await self.driver.rollback(session)
             print(f"[AGENT] done")
             self.stat = AgentStat.DONE
             self.done_running.set()
     
     def get_messages(self) -> list[dict]:
-        return self.session.get_messages()
+        return self.session.get_messages() if self.session else []
