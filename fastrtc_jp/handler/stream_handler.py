@@ -321,21 +321,30 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         if self.get_stat()==HdrStat.Idle or self.get_stat()==HdrStat.Wait or self.get_stat()==HdrStat.Thinking or self.get_stat()==HdrStat.Talking:
             self._last_emit_time = time.time()
 
+    async def set_profile(self, profile:str):
+        self.agent_profile.set_value(profile)
+
+    async def set_threshold(self, threshold:float):
+        if self.vad_hdr:
+            await self.vad_hdr.set_threshold(threshold)
+
     async def handle_args(self, args:tuple|list):
         print(f"[args] {args}")
         if len(args)>=1 and isinstance(args[0],str):
-            self.agent_profile.set_value(args[0])
+            await self.set_profile(args[0])
         if len(args)>=2:
-            await self.vad_hdr.set_threshold(args[1])
+            await self.set_threshold(args[1])
     
     async def _fn_task_args(self):
         try:
+            before = []
             while self.is_running():
+                await self.fetch_args()
+                after = self.latest_args[1:] if isinstance(self.latest_args, (list, tuple)) and len(after) > 1 else []
+                if before != after:
+                    await self.handle_args(after)
+                    before = after
                 await asyncio.sleep(0.2)
-                if self.latest_args and self.args_set.is_set():
-                    self.args_set.clear()
-                    args = self.latest_args[1:] if isinstance(self.latest_args, list) and len(self.latest_args)>1 else []
-                    await self.handle_args(args)
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyboardInterrupt, SystemExit) as ex:
             self.logger.debug(f"args cancelled {ex}")
         except Exception as ex:
