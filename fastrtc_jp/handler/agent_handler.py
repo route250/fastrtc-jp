@@ -1,6 +1,7 @@
 
 from abc import ABC, abstractmethod
 from typing import AsyncGenerator
+from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 from fastrtc_jp.handler.session import AgentSession
 
 
@@ -14,6 +15,9 @@ class AgentHandler(ABC):
 
     def shutdown(self):
         pass
+
+    @abstractmethod
+    def get_profile_list() -> list[str]|tuple[str]: ...
 
     @abstractmethod
     async def start_session(self, session:AgentSession, profile ) -> AgentSession: ...

@@ -40,7 +40,8 @@ from fastrtc_jp.handler.dummy import dummy_response
 logger = getLogger(__name__)
 
 
-def get_tts_model() -> TTSModel:
+def get_tts_model(profile:str) -> TTSModel:
+    print(f"get_tts_model: profile={profile}",flush=True)
     return GTTSModel()
 
 class GoogleSttHandler(SttHandler):
@@ -89,6 +90,11 @@ class DummyDriver(AgentHandler):
     def shutdown(self):
         pass
 
+    #Ovrride
+    @staticmethod
+    def get_profile_list() -> list[str]|tuple[str]:
+        return ["prof01", "prof02", "prof03"]
+
     #Override
     async def start_session(self, session:AgentSession, profile) -> AgentSession:
         return session
@@ -120,6 +126,9 @@ def test_speech_gr():
     loggerx = getLogger("handler.speech_handler")
     loggerx.setLevel("DEBUG")
 
+    agent_hdr = DummyDriver()
+    profile_list = agent_hdr.get_profile_list()
+
     with gr.Blocks(fill_height=True,fill_width=True) as demo:
         gr.HTML(
         """
@@ -136,8 +145,8 @@ def test_speech_gr():
                 with gr.Row(scale=1):
                     dropdown = gr.Dropdown(
                         label="Options",
-                        choices=["Option 1", "Option 2", "Option 3"],
-                        value="Option 1"
+                        choices=profile_list,
+                        value=profile_list[0]
                     )
                 with gr.Row(scale=1):
                     slider = gr.Slider(minimum=0.0, maximum=1.0, value=0.5, step=0.1, label="Threshold")
@@ -155,7 +164,7 @@ def test_speech_gr():
         audio.stream(
             AsyncVoiceStreamHandler(
                 GoogleSttHandler(),
-                DummyDriver(),
+                agent_hdr,
                 get_tts_model_fn=get_tts_model,
                 vad_options=algo_options,
             ),

@@ -13,6 +13,7 @@ from numpy.typing import NDArray
 
 from fastrtc import AsyncStreamHandler, AdditionalOutputs
 from fastrtc.tracks import EmitType
+from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 
 from fastrtc_jp.handler.agent_handler import AgentHandler
 from fastrtc_jp.handler.service import STTService, TTSService
@@ -111,7 +112,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         agent_hdr: AgentHandler,
         *,
         #vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
-        get_tts_model_fn,
+        get_tts_model_fn:Callable[[str], TTSModel],
         vad_hdr:VadHandler|None=None,
         vad_options:VadOptions|None = None,
         # wakeup_words:list[str]|None=None
@@ -129,7 +130,8 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         self._stat:HdrStat = HdrStat.Init
         self.stt_hdr: SttHandler = stt_hdr
         self.agent_hdr:AgentHandler = agent_hdr
-        self.agent_profile:EventValue[str] = EventValue("default")
+        default_profile = agent_hdr.get_profile_list()[0]
+        self.agent_profile:EventValue[str] = EventValue(default_profile)
         if vad_hdr is None:
             self.vad_options:VadOptions = vad_options or VadOptions()
             self.vad_hdr = VadHandler(self.vad_options)
@@ -340,7 +342,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
             before = []
             while self.is_running():
                 await self.fetch_args()
-                after = self.latest_args[1:] if isinstance(self.latest_args, (list, tuple)) and len(after) > 1 else []
+                after = self.latest_args[1:] if isinstance(self.latest_args, (list, tuple)) and len(self.latest_args) > 1 else []
                 if before != after:
                     await self.handle_args(after)
                     before = after
@@ -501,8 +503,9 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 tts_data:TtsAudio = await self.tts_queue.get()
                 # 非同期でttsを実行
                 if not tts_data.is_canceled():
+                    profile = self.agent_profile.value
                     print(f"<tts> start {tts_data.ai_response}")
-                    result = await self._tts_service.tts(tts_data.ai_response,None)
+                    result = await self._tts_service.tts(profile,tts_data.ai_response,None)
                     print(f" tts result {type(result)}")
                     tts_data.set_audio(result)
                     # 処理したデータをq1に送る
