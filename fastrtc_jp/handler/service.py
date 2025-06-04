@@ -12,6 +12,8 @@ from numpy.typing import NDArray
 from fastrtc.speech_to_text.stt_ import STTModel
 from fastrtc.text_to_speech.tts import TTSModel
 
+from fastrtc_jp.text_to_speech.opt import SpkOptions
+
 
 NOT_STARTED = 0  # Process has not started yet
 INITIALIZING = 1  # Process is initializing
@@ -179,7 +181,7 @@ class TTSService(ServiceProcess):
     Text-to-Speech (TTS) service process wrapper.
     Handles text input and returns synthesized audio using a separate process.
     """
-    def __init__(self, get_tts_model_fn:Callable[[str],TTSModel]):
+    def __init__(self, get_tts_model_fn:Callable[[str,SpkOptions],TTSModel], get_tts_options_fn:Callable[[str,SpkOptions],SpkOptions]):
         """
         Initialize the TTS service process with a model factory function.
         """
@@ -187,14 +189,15 @@ class TTSService(ServiceProcess):
         self.process = Process(
                 target=TTSService._service_task,
                 args=(
-                    self.stat,self.cmd,self.inp,self.out,get_tts_model_fn
+                    self.stat,self.cmd,self.inp,self.out,get_tts_model_fn,get_tts_options_fn
                 )
             )
 
     @staticmethod
     def _service_task(
             stat:Synchronized,cmd:Synchronized, inp:Queue, out:Queue,
-            get_tts_model_fn: Callable[[str],TTSModel]
+            get_tts_model_fn: Callable[[str,SpkOptions],TTSModel],
+            get_tts_options_fn: Callable[[str,SpkOptions],SpkOptions]
         ):
         """
         Main loop for the TTS service process.
@@ -202,18 +205,24 @@ class TTSService(ServiceProcess):
         """
         try:
             stat.value = INITIALIZING
-            current_profile:str = ""
+            model:TTSModel = None # type: ignore
+            option = None # type: ignore
+            current_class_id:str = ""
+            current_opt:SpkOptions = SpkOptions()
             while cmd.value==0:
                 stat.value = READY
                 input_data = inp.get()
                 if input_data is not None:
                     try:
                         stat.value = RUNNING
-                        profile,text,options = input_data
-                        if profile != current_profile:
-                            current_profile = profile
-                            model = get_tts_model_fn(profile)
-                        audio:tuple[int, NDArray[np.float32] | NDArray[np.int16]] = model.tts(text,options)
+                        class_id,opt,text = input_data
+                        if current_class_id != class_id or current_opt.model != opt.model:
+                            current_class_id = class_id
+                            model = get_tts_model_fn( class_id, opt )
+                        if current_opt != opt:
+                            option = get_tts_options_fn(class_id,opt)
+                            current_opt = opt
+                        audio:tuple[int, NDArray[np.float32] | NDArray[np.int16]] = model.tts(text,option)
                         out.put_nowait(audio)
                     except Exception as ex:
                         out.put_nowait(ex)
@@ -228,11 +237,11 @@ class TTSService(ServiceProcess):
 
             stat.value = STOPPED
 
-    async def tts(self, profile:str, text:str, options:Any) ->tuple[int, NDArray[np.float32] | NDArray[np.int16]]:
+    async def tts(self, class_id:str, options:SpkOptions, text:str) ->tuple[int, NDArray[np.float32] | NDArray[np.int16]]:
         """
         Asynchronously send text and options for speech synthesis and return the generated audio data.
         """
-        ret = await self._put_and_get( (profile,text,options) )
+        ret = await self._put_and_get( (class_id, options, text) )
         if isinstance(ret,tuple):
             return ret
         elif isinstance(ret,Exception):

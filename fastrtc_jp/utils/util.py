@@ -69,3 +69,16 @@ def setup_logger(log_dir:str = './tmp/logs/'):
     logging.getLogger('httpcore').setLevel(logging.ERROR)
     logging.getLogger('urllib3').setLevel(logging.ERROR)
     logging.getLogger('gtts').setLevel(logging.ERROR)
+
+def parse_int( value:str, default:int = 0) ->int:
+    try:
+        if value is not None:
+            return int(value)
+    except ValueError:
+        return default
+
+def parse_float( value:str, default:float = 0.0) ->float:
+    try:
+        return float(value)
+    except ValueError:
+        return default

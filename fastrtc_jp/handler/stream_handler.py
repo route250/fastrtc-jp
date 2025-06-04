@@ -25,6 +25,7 @@ from fastrtc_jp.handler.stt_handler import SttHandler
 from fastrtc_jp.handler.agent_task import AgentTask
 from fastrtc_jp.handler.emit import EmitManager
 from fastrtc_jp.handler.session import AgentMessage, AgentSession
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 
 def clear_queue(q:asyncio.Queue):
     try:
@@ -112,7 +113,8 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         agent_hdr: AgentHandler,
         *,
         #vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
-        get_tts_model_fn:Callable[[str], TTSModel],
+        get_tts_model_fn:Callable[[str,SpkOptions], TTSModel],
+        get_tts_options_fn:Callable[[str,SpkOptions],SpkOptions],
         vad_hdr:VadHandler|None=None,
         vad_options:VadOptions|None = None,
         # wakeup_words:list[str]|None=None
@@ -150,7 +152,8 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         self._stt_service:STTService = STTService(stt_hdr.get_stt_model)
 
         self.get_tts_model_fn = get_tts_model_fn
-        self._tts_service:TTSService = TTSService(get_tts_model_fn)
+        self.get_tts_options_fn = get_tts_options_fn
+        self._tts_service:TTSService = TTSService(get_tts_model_fn,get_tts_options_fn)
 
         self._task_list:list[asyncio.Task] = []
 
@@ -214,6 +217,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 self.agent_hdr.copy(),
                 vad_options = self.vad_options,
                 get_tts_model_fn=self.get_tts_model_fn,
+                get_tts_options_fn=self.get_tts_options_fn,
             )
         except:
             self.logger.exception("can not copy instance")
@@ -504,8 +508,10 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 # 非同期でttsを実行
                 if not tts_data.is_canceled():
                     profile = self.agent_profile.value
+                    cls_id:str = "" # TODO
+                    opts:SpkOptions = SpkOptions()
                     print(f"<tts> start {tts_data.ai_response}")
-                    result = await self._tts_service.tts(profile,tts_data.ai_response,None)
+                    result = await self._tts_service.tts(cls_id,opts, tts_data.ai_response)
                     print(f" tts result {type(result)}")
                     tts_data.set_audio(result)
                     # 処理したデータをq1に送る
