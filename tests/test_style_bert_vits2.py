@@ -10,7 +10,7 @@ def test_buildin_model(model:str|None=None,speaker_id:int|None=None,device:str|N
     text = f"こんにちは、{model}です。今日も良い天気ですね。"
     options:StyleBertVits2Options|None = None
     if model or device:
-        options = StyleBertVits2Options(model=model,speaker_id=speaker_id,device=device or "cpu")
+        options = StyleBertVits2Options(model=model,speaker_id=speaker_id,device=device)
     print(f"test model:{model}")
     for sample_rate,audio in tts.stream_tts_sync(text,options=options):
         print(f"  audio: sr:{sample_rate} {audio.shape} {audio.dtype}")

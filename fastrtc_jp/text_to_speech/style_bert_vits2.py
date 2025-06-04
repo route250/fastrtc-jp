@@ -14,6 +14,7 @@ from fastrtc_jp.text_to_speech.util import split_to_talk_segments
 from style_bert_vits2.constants import DEFAULT_BERT_TOKENIZER_PATHS, Languages, DEFAULT_STYLE
 from style_bert_vits2.nlp import bert_models
 from style_bert_vits2.tts_model import TTSModel as SBV2_TTSModel
+import torch
 
 from fastrtc_jp.text_to_speech.opt import SpkOptions
 from fastrtc_jp.utils.hf_util import download_hf_hub
@@ -187,7 +188,7 @@ class StyleBertVits2Options(SpkOptions):
     model_path: str|Path|None = None
     config_path: str|Path|None = None
     style_vec_path: str|Path|None = None
-    device: str = "cpu"
+    device: str|None = None
 
 
 class StyleBertVits2(TTSModel):
@@ -223,7 +224,15 @@ class StyleBertVits2(TTSModel):
                 config_path = model_dict.get('config')
                 style_vec_path = model_dict.get('style_vec')
                 language = to_language(model_dict.get('language'))
-            device = options.device if options and options.device else "cpu"
+            device = None
+            if options is not None and options.device is not None and options.device.lower() in ["cuda", "cpu", "mps"]:
+                device = options.device.lower()
+            if ( device == "cuda" or device is None) and torch.cuda.is_available():
+                device = "cuda"
+            elif ( device == "mps" or device is None) and torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
 
             bert_models.load_model(language, SBV2_TOKENIZER_PATHS[language])
             bert_models.load_tokenizer(language, SBV2_TOKENIZER_PATHS[language])
