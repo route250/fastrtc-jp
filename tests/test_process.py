@@ -8,6 +8,7 @@ import asyncio
 from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 from fastrtc.speech_to_text.stt_ import STTModel
 from fastrtc_jp.handler.service import STTService, TTSService
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 
 
 def encode_text( text:str ) ->NDArray[np.float32]:
@@ -48,8 +49,11 @@ class DummyTTSModel(TTSModel):
         # Dummy generator
         yield self.tts(text,options)
 
-def get_dummy_tts_model():
+def get_dummy_tts_model(class_id:str, options:SpkOptions):
     return DummyTTSModel()
+
+def get_dummy_tts_options(class_id:str, options:SpkOptions) -> SpkOptions:
+    return options
 
 class TestProcessServices(unittest.IsolatedAsyncioTestCase):
     async def test_stt_service(self):
@@ -66,11 +70,11 @@ class TestProcessServices(unittest.IsolatedAsyncioTestCase):
 
     async def test_tts_service(self):
         text = "test"
-        options = {}
+        options = SpkOptions()
         expected_sr = 24000
         expected_audio = encode_text(text)
-        service = TTSService(get_dummy_tts_model)
-        sample_rate, audio = await service.tts(text, options)
+        service = TTSService(get_dummy_tts_model, get_dummy_tts_options)
+        sample_rate, audio = await service.tts("", options, text)
         self.assertEqual(sample_rate, expected_sr)
         self.assertIsInstance(audio, np.ndarray)
         np.testing.assert_array_equal(audio, expected_audio)
