@@ -113,8 +113,8 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         agent_hdr: AgentHandler,
         *,
         #vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
-        get_tts_model_fn:Callable[[str,SpkOptions], TTSModel],
-        get_tts_options_fn:Callable[[str,SpkOptions],SpkOptions],
+        get_tts_model_fn:Callable[[SpkOptions], TTSModel],
+        get_tts_options_fn:Callable[[SpkOptions],SpkOptions],
         vad_hdr:VadHandler|None=None,
         vad_options:VadOptions|None = None,
         # wakeup_words:list[str]|None=None
@@ -132,7 +132,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         self._stat:HdrStat = HdrStat.Init
         self.stt_hdr: SttHandler = stt_hdr
         self.agent_hdr:AgentHandler = agent_hdr
-        default_profile = agent_hdr.get_profile_list()[0]
+        default_profile = next(iter(agent_hdr.get_profile_list()))
         self.agent_profile:EventValue[str] = EventValue(default_profile)
         if vad_hdr is None:
             self.vad_options:VadOptions = vad_options or VadOptions()
@@ -508,10 +508,9 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 # 非同期でttsを実行
                 if not tts_data.is_canceled():
                     profile = self.agent_profile.value
-                    cls_id:str = "" # TODO
-                    opts:SpkOptions = SpkOptions()
-                    print(f"<tts> start {tts_data.ai_response}")
-                    result = await self._tts_service.tts(cls_id,opts, tts_data.ai_response)
+                    opts:SpkOptions = self.agent_hdr.get_tts_options(profile)
+                    print(f"<tts> start {profile} {opts.speaker_name} {tts_data.ai_response}")
+                    result = await self._tts_service.tts(opts, tts_data.ai_response)
                     print(f" tts result {type(result)}")
                     tts_data.set_audio(result)
                     # 処理したデータをq1に送る

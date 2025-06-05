@@ -3,6 +3,7 @@ import sys,os
 from pathlib import Path
 import platform
 from typing import Type, AsyncGenerator
+import json
 
 sys.path.insert(0, '.venv/lib/python3.12/site-packages')
 sys.path.insert(0, '.venv/lib/python3.11/site-packages')
@@ -41,23 +42,43 @@ from fastrtc_jp.handler.dummy import dummy_response
 logger = getLogger(__name__)
 
 
-def get_tts_model(class_id:str, options:SpkOptions) -> TTSModel:
+def get_tts_model(options:SpkOptions) -> TTSModel:
     """Return a TTSModel instance.
 
     This simple example ignores ``class_id`` and always returns ``GTTSModel``.
     ``options`` is currently unused but kept for signature compatibility.
     """
-    print(f"get_tts_model: class_id={class_id}", flush=True)
+    print(f"get_tts_model: class_id={options.class_id}", flush=True)
+    if options.class_id == "voicevox":
+        from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSModel
+        return VoicevoxTTSModel()
+    elif options.class_id == "sbv2":
+        from fastrtc_jp.text_to_speech.style_bert_vits2 import StyleBertVits2,SBV2_MODELS
+        return StyleBertVits2()
+    else:
+        logger.warning(f"get_tts_model: Unknown class_id {options.class_id}, using GTTSModel.")
     return GTTSModel()
 
 
-def get_tts_options(class_id:str, options:SpkOptions) -> SpkOptions:
+def get_tts_options(options:SpkOptions) -> SpkOptions:
     """Return ``SpkOptions`` for the given class.
 
     The sample implementation converts the generic :class:`SpkOptions` into
     :class:`GTTSOptions` used by :class:`GTTSModel`.
     """
-    opts = GTTSOptions()
+    if options.class_id == "voicevox":
+        from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSOptions
+        opts = VoicevoxTTSOptions()
+        opts.speaker_id = options.speaker_id or 8  # Default to speaker ID 8 if not specified
+        opts.speaker_name = options.speaker_name
+        return opts
+    elif options.class_id == "sbv2":
+        from fastrtc_jp.text_to_speech.style_bert_vits2 import StyleBertVits2Options
+        opts = StyleBertVits2Options()
+        opts.model = options.model
+        opts.speaker_id = options.speaker_id
+    else:
+        opts = GTTSOptions()
     opts.lang = options.lang
     opts.speedScale = options.speedScale
     opts.pitchOffset = options.pitchOffset
@@ -110,9 +131,24 @@ class DummyDriver(AgentHandler):
         pass
 
     #Ovrride
-    @staticmethod
-    def get_profile_list() -> list[str]|tuple[str]:
-        return ["prof01", "prof02", "prof03"]
+    def get_profile_list(self) -> dict[str,SpkOptions]:
+        return {
+            "ひびき": SpkOptions("voicevox", speaker_id=8, speaker_name="ひびき"),
+            "girl1": SpkOptions("sbv2", model="girl", speaker_id=1, speaker_name="girl1"),
+            "girl1": SpkOptions("sbv2", model="girl", speaker_id=2, speaker_name="girl2"),
+            "girl1": SpkOptions("sbv2", model="girl", speaker_id=3, speaker_name="girl3"),
+            "girl1": SpkOptions("sbv2", model="girl", speaker_id=4, speaker_name="girl4"),
+            "AbeShinzo": SpkOptions("sbv2", model="AbeShinzo", speaker_name="安倍晋三"),
+        }
+
+    #Ovverride
+    def get_tts_options(self, profile_name:str) -> SpkOptions:
+        map = self.get_profile_list()
+        opts:SpkOptions|None = map.get(profile_name)
+        if opts is None:
+            logger.warning(f"get_tts_options: No options found for {profile_name}, using default.")
+            opts = GTTSOptions()
+        return opts
 
     #Override
     async def start_session(self, session:AgentSession, profile) -> AgentSession:
@@ -146,7 +182,7 @@ def test_speech_gr():
     loggerx.setLevel("DEBUG")
 
     agent_hdr = DummyDriver()
-    profile_list = agent_hdr.get_profile_list()
+    profile_list = list(agent_hdr.get_profile_list().keys())
 
     with gr.Blocks(fill_height=True,fill_width=True) as demo:
         gr.HTML(

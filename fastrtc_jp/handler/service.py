@@ -181,7 +181,7 @@ class TTSService(ServiceProcess):
     Text-to-Speech (TTS) service process wrapper.
     Handles text input and returns synthesized audio using a separate process.
     """
-    def __init__(self, get_tts_model_fn:Callable[[str,SpkOptions],TTSModel], get_tts_options_fn:Callable[[str,SpkOptions],SpkOptions]):
+    def __init__(self, get_tts_model_fn:Callable[[SpkOptions],TTSModel], get_tts_options_fn:Callable[[SpkOptions],SpkOptions]):
         """
         Initialize the TTS service process with a model factory function.
         """
@@ -196,8 +196,8 @@ class TTSService(ServiceProcess):
     @staticmethod
     def _service_task(
             stat:Synchronized,cmd:Synchronized, inp:Queue, out:Queue,
-            get_tts_model_fn: Callable[[str,SpkOptions],TTSModel],
-            get_tts_options_fn: Callable[[str,SpkOptions],SpkOptions]
+            get_tts_model_fn: Callable[[SpkOptions],TTSModel],
+            get_tts_options_fn: Callable[[SpkOptions],SpkOptions]
         ):
         """
         Main loop for the TTS service process.
@@ -207,7 +207,6 @@ class TTSService(ServiceProcess):
             stat.value = INITIALIZING
             model:TTSModel = None # type: ignore
             option = None # type: ignore
-            current_class_id:str = ""
             current_opt:SpkOptions = SpkOptions()
             while cmd.value==0:
                 stat.value = READY
@@ -215,13 +214,12 @@ class TTSService(ServiceProcess):
                 if input_data is not None:
                     try:
                         stat.value = RUNNING
-                        class_id,opt,text = input_data
-                        if current_class_id != class_id or current_opt.model != opt.model:
-                            current_class_id = class_id
-                            model = get_tts_model_fn( class_id, opt )
+                        opt,text = input_data
+                        if current_opt.class_id != opt.class_id or current_opt.model != opt.model:
+                            model = get_tts_model_fn( opt )
                         if current_opt != opt:
-                            option = get_tts_options_fn(class_id,opt)
-                            current_opt = opt
+                            option = get_tts_options_fn(opt)
+                        current_opt = opt
                         audio:tuple[int, NDArray[np.float32] | NDArray[np.int16]] = model.tts(text,option)
                         out.put_nowait(audio)
                     except Exception as ex:
@@ -237,11 +235,11 @@ class TTSService(ServiceProcess):
 
             stat.value = STOPPED
 
-    async def tts(self, class_id:str, options:SpkOptions, text:str) ->tuple[int, NDArray[np.float32] | NDArray[np.int16]]:
+    async def tts(self, options:SpkOptions, text:str) ->tuple[int, NDArray[np.float32] | NDArray[np.int16]]:
         """
         Asynchronously send text and options for speech synthesis and return the generated audio data.
         """
-        ret = await self._put_and_get( (class_id, options, text) )
+        ret = await self._put_and_get( (options, text) )
         if isinstance(ret,tuple):
             return ret
         elif isinstance(ret,Exception):

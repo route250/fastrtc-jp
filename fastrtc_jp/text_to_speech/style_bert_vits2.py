@@ -185,6 +185,7 @@ def to_language(lang: str|None) -> Languages:
 
 @dataclass
 class StyleBertVits2Options(SpkOptions):
+    class_id: str = "sbv2"
     model_path: str|Path|None = None
     config_path: str|Path|None = None
     style_vec_path: str|Path|None = None
@@ -199,18 +200,6 @@ class StyleBertVits2(TTSModel):
     async def _load(self,options:StyleBertVits2Options|None=None) -> SBV2_TTSModel:
         if self.model is None:
             # Bertモデルをロード
-            if options and options.lang and "en" in options.lang.lower():
-                language = Languages.EN
-            elif options and options.lang and "zh" in options.lang.lower():
-                language = Languages.ZH
-            else:
-                language = Languages.JP
-
-            model_path = options.model_path if options else None
-            config_path = options.config_path if options else None
-            style_vec_path = options.style_vec_path if options else None
-            language = options.lang if options else "ja-jp"
-            #
             if options and options.model_path and options.config_path and options.style_vec_path:
                 model=options.model or options.model_path
                 model_path = options.model_path

@@ -36,6 +36,7 @@ def mp3_to_pcm( mp3_data: bytes) -> tuple[int, NDArray[np.float32]]:
 
 @dataclass
 class GTTSOptions(SpkOptions):
+    class_id: str = "gtts"
     tld: str = "jp"        # トップレベルドメイン
 
 

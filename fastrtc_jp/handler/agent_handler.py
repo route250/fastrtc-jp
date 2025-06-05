@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import AsyncGenerator
 from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 from fastrtc_jp.handler.session import AgentSession
-
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 
 class AgentHandler(ABC):
 
@@ -17,7 +17,10 @@ class AgentHandler(ABC):
         pass
 
     @abstractmethod
-    def get_profile_list() -> dict[str,dict[str,dict[str,str]]]: ...
+    def get_profile_list(self) -> dict[str,SpkOptions]: ...
+
+    @abstractmethod
+    def get_tts_options(self, profile:str) -> SpkOptions: ...
 
     @abstractmethod
     async def start_session(self, session:AgentSession, profile ) -> AgentSession: ...

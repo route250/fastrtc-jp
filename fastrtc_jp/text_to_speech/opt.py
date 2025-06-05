@@ -4,6 +4,7 @@ from fastrtc.text_to_speech.tts import TTSOptions as FastRTC_TTSOptions
 
 @dataclass
 class SpkOptions(FastRTC_TTSOptions):
+    class_id: str = "dummy"
     model:int|str|None = None
     speaker_id: int|None = None
     speaker_style: str|None = None

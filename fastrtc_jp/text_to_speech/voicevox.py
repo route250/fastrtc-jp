@@ -52,6 +52,7 @@ class VoicevoxStyleInfo:
 
 @dataclass
 class VoicevoxTTSOptions(SpkOptions):
+    class_id: str = "voicevox"
     url: str|None = None
     speaker_uuid: str|None = None
     speaker_id: int = 8 # ひびき
