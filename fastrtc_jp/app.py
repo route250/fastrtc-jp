@@ -29,7 +29,8 @@ from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 
 from fastrtc_jp.handler.agent_handler import AgentSession, AgentHandler
 from fastrtc_jp.speech_to_text.sr_google import GoogleSTT
-from fastrtc_jp.text_to_speech.gtts import GTTSModel
+from fastrtc_jp.text_to_speech.gtts import GTTSModel, GTTSOptions
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 from fastrtc_jp.handler.stream_handler import VadOptions, AsyncVoiceStreamHandler
 from fastrtc_jp.utils.util import load_dotenv, setup_logger
 from fastrtc_jp.handler.vad import VadOptions, VadHandler
@@ -40,9 +41,27 @@ from fastrtc_jp.handler.dummy import dummy_response
 logger = getLogger(__name__)
 
 
-def get_tts_model(profile:str) -> TTSModel:
-    print(f"get_tts_model: profile={profile}",flush=True)
+def get_tts_model(class_id:str, options:SpkOptions) -> TTSModel:
+    """Return a TTSModel instance.
+
+    This simple example ignores ``class_id`` and always returns ``GTTSModel``.
+    ``options`` is currently unused but kept for signature compatibility.
+    """
+    print(f"get_tts_model: class_id={class_id}", flush=True)
     return GTTSModel()
+
+
+def get_tts_options(class_id:str, options:SpkOptions) -> SpkOptions:
+    """Return ``SpkOptions`` for the given class.
+
+    The sample implementation converts the generic :class:`SpkOptions` into
+    :class:`GTTSOptions` used by :class:`GTTSModel`.
+    """
+    opts = GTTSOptions()
+    opts.lang = options.lang
+    opts.speedScale = options.speedScale
+    opts.pitchOffset = options.pitchOffset
+    return opts
 
 class GoogleSttHandler(SttHandler):
     def __init__(self,):
@@ -166,6 +185,7 @@ def test_speech_gr():
                 GoogleSttHandler(),
                 agent_hdr,
                 get_tts_model_fn=get_tts_model,
+                get_tts_options_fn=get_tts_options,
                 vad_options=algo_options,
             ),
             inputs=[audio,dropdown,slider],
