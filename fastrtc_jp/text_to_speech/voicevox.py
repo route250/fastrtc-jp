@@ -2,6 +2,9 @@ import sys,os
 import asyncio
 import re
 from typing import AsyncGenerator, Generator, Literal, Protocol
+import json
+import pathlib
+from functools import lru_cache
 import wave
 from io import BytesIO
 import httpx
@@ -15,9 +18,6 @@ from fastrtc.text_to_speech.tts import TTSModel
 from fastrtc_jp.utils.util import get_availavle_url
 from fastrtc_jp.text_to_speech.util import split_to_talk_segments
 from fastrtc_jp.text_to_speech.opt import SpkOptions
-import json
-import pathlib
-from functools import lru_cache
 
 _EMPTY_DATA = np.zeros((1,), dtype=np.float32)
 
@@ -55,8 +55,16 @@ class VoicevoxTTSOptions(SpkOptions):
     class_id: str = "voicevox"
     url: str|None = None
     speaker_uuid: str|None = None
-    speaker_id: int = 8 # ひびき
+    speaker_id: int = 8 # 春日部つむぎ
 
+@lru_cache(maxsize=1)
+def get_voicevox_options_list() -> dict[str,SpkOptions]:
+    return {
+        "春日部つむぎ": SpkOptions("voicevox", speaker_id=8),
+        "ずんだもん": SpkOptions("voicevox", speaker_id=3),
+        "四国めたん": SpkOptions("voicevox", speaker_id=2),
+        "青山龍星": SpkOptions("voicevox", speaker_id=13),
+    }
 
 @lru_cache(maxsize=1)
 def load_voicevox_charinfo() -> dict[str,VoicevoxCharacterInfo]:

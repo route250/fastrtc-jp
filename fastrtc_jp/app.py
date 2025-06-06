@@ -3,6 +3,7 @@ import sys,os
 from pathlib import Path
 import platform
 from typing import Type, AsyncGenerator
+from functools import lru_cache
 import json
 
 sys.path.insert(0, '.venv/lib/python3.12/site-packages')
@@ -70,7 +71,6 @@ def get_tts_options(options:SpkOptions) -> SpkOptions:
         from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSOptions
         opts = VoicevoxTTSOptions()
         opts.speaker_id = options.speaker_id or 8  # Default to speaker ID 8 if not specified
-        opts.speaker_name = options.speaker_name
         return opts
     elif options.class_id == "sbv2":
         from fastrtc_jp.text_to_speech.style_bert_vits2 import StyleBertVits2Options
@@ -83,6 +83,7 @@ def get_tts_options(options:SpkOptions) -> SpkOptions:
     opts.speedScale = options.speedScale
     opts.pitchOffset = options.pitchOffset
     return opts
+
 
 class GoogleSttHandler(SttHandler):
     def __init__(self,):
@@ -131,15 +132,16 @@ class DummyDriver(AgentHandler):
         pass
 
     #Ovrride
+    @lru_cache(maxsize=1)
     def get_profile_list(self) -> dict[str,SpkOptions]:
-        return {
-            "ひびき": SpkOptions("voicevox", speaker_id=8, speaker_name="ひびき"),
-            "girl1": SpkOptions("sbv2", model="girl", speaker_id=1, speaker_name="girl1"),
-            "girl1": SpkOptions("sbv2", model="girl", speaker_id=2, speaker_name="girl2"),
-            "girl1": SpkOptions("sbv2", model="girl", speaker_id=3, speaker_name="girl3"),
-            "girl1": SpkOptions("sbv2", model="girl", speaker_id=4, speaker_name="girl4"),
-            "AbeShinzo": SpkOptions("sbv2", model="AbeShinzo", speaker_name="安倍晋三"),
-        }
+        from fastrtc_jp.text_to_speech.voicevox import get_voicevox_options_list
+        from fastrtc_jp.text_to_speech.style_bert_vits2 import get_sbv2_options_list
+        from fastrtc_jp.text_to_speech.gtts import get_gtts_options_list
+        m:dict[str,SpkOptions] = {}
+        m.update(get_voicevox_options_list())
+        m.update(get_sbv2_options_list())
+        m.update(get_gtts_options_list())
+        return m
 
     #Ovverride
     def get_tts_options(self, profile_name:str) -> SpkOptions:

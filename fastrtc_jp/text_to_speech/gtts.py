@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, AsyncGenerator, Generator, Literal, Protocol
 from dataclasses import dataclass
+from functools import lru_cache
 from io import BytesIO
 import numpy as np
 from numpy.typing import NDArray
@@ -39,6 +40,11 @@ class GTTSOptions(SpkOptions):
     class_id: str = "gtts"
     tld: str = "jp"        # トップレベルドメイン
 
+@lru_cache(maxsize=1)
+def get_gtts_options_list() -> dict[str,SpkOptions]:
+    return {
+        "gTTS": SpkOptions("gtts"),
+    }
 
 class GTTSModel(TTSModel):
     def __init__(self):

@@ -3,6 +3,7 @@ from pathlib import Path
 import asyncio
 from typing import Any, AsyncGenerator, Generator, Union
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 from numpy.typing import NDArray
@@ -191,6 +192,23 @@ class StyleBertVits2Options(SpkOptions):
     style_vec_path: str|Path|None = None
     device: str|None = None
 
+@lru_cache(maxsize=1)
+def get_sbv2_options_list() -> dict[str,SpkOptions]:
+    return {
+        "amazinGood": SpkOptions("sbv2", model="girl", speaker_id=0),
+        "calmCloud": SpkOptions("sbv2", model="girl", speaker_id=1),
+        "coolcute": SpkOptions("sbv2", model="girl", speaker_id=2),
+        "fineCrystal": SpkOptions("sbv2", model="girl", speaker_id=3),
+        "lightFire": SpkOptions("sbv2", model="girl", speaker_id=4),
+        "Rinne": SpkOptions("sbv2", model="rinne"),
+        "AbeShinzo": SpkOptions("sbv2", model="AbeShinzo"),
+        "tsukuyomi-chan": SpkOptions("sbv2", model="tsukuyomi-chan"),
+        "sakura-miko": SpkOptions("sbv2", model="sakura-miko"),
+        "jvnv-jp-F1": SpkOptions("sbv2", model="jvnv-F1-jp"),
+        "jvnv-jp-F2": SpkOptions("sbv2", model="jvnv-F2-jp"),
+        "jvnv-jp-M1": SpkOptions("sbv2", model="jvnv-M1-jp"),
+        "jvnv-jp-M2": SpkOptions("sbv2", model="jvnv-M2-jp"),
+    }
 
 class StyleBertVits2(TTSModel):
     def __init__(self):
