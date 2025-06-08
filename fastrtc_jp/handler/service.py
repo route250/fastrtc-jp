@@ -1,6 +1,6 @@
 import sys
 import asyncio
-from typing import Any, Callable
+from typing import Any, Type, Callable
 from multiprocessing import Process, Value, Queue
 from queue import Empty
 from multiprocessing.sharedctypes import Synchronized
@@ -13,6 +13,7 @@ from fastrtc.speech_to_text.stt_ import STTModel
 from fastrtc.text_to_speech.tts import TTSModel
 
 from fastrtc_jp.text_to_speech.opt import SpkOptions
+from fastrtc_jp.text_to_speech.tts_provider import TtsProvider
 
 
 NOT_STARTED = 0  # Process has not started yet
@@ -181,7 +182,7 @@ class TTSService(ServiceProcess):
     Text-to-Speech (TTS) service process wrapper.
     Handles text input and returns synthesized audio using a separate process.
     """
-    def __init__(self, get_tts_model_fn:Callable[[SpkOptions],TTSModel], get_tts_options_fn:Callable[[SpkOptions],SpkOptions]):
+    def __init__(self, tts_provider:Type[TtsProvider]):
         """
         Initialize the TTS service process with a model factory function.
         """
@@ -189,15 +190,14 @@ class TTSService(ServiceProcess):
         self.process = Process(
                 target=TTSService._service_task,
                 args=(
-                    self.stat,self.cmd,self.inp,self.out,get_tts_model_fn,get_tts_options_fn
+                    self.stat,self.cmd,self.inp,self.out, tts_provider,
                 )
             )
 
     @staticmethod
     def _service_task(
             stat:Synchronized,cmd:Synchronized, inp:Queue, out:Queue,
-            get_tts_model_fn: Callable[[SpkOptions],TTSModel],
-            get_tts_options_fn: Callable[[SpkOptions],SpkOptions]
+            tts_provider: Type[TtsProvider],
         ):
         """
         Main loop for the TTS service process.
@@ -216,9 +216,9 @@ class TTSService(ServiceProcess):
                         stat.value = RUNNING
                         opt,text = input_data
                         if current_opt.class_id != opt.class_id or current_opt.model != opt.model:
-                            model = get_tts_model_fn( opt )
+                            model = tts_provider.get_tts_model( opt )
                         if current_opt != opt:
-                            option = get_tts_options_fn(opt)
+                            option = tts_provider.get_tts_options(opt)
                         current_opt = opt
                         audio:tuple[int, NDArray[np.float32] | NDArray[np.int16]] = model.tts(text,option)
                         out.put_nowait(audio)

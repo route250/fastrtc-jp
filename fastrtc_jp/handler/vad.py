@@ -11,8 +11,9 @@ from numpy.typing import NDArray
 import librosa
 
 from fastrtc import get_silero_model
-from fastrtc.pause_detection.silero import SileroVadOptions
+from fastrtc.pause_detection.silero import SileroVadOptions, SileroVADModel
 from fastrtc.utils import audio_to_float32, audio_to_int16
+from humaware_vad import HumAwareVADModel
 
 from fastrtc_jp.handler.voice import SttAudio
 from fastrtc_jp.speech_to_text.util import resample_audio
@@ -60,7 +61,7 @@ class VadHandler:
             vad_options: VadOptions|None=None,
         ):
         self.receive_rate = VadHandler.frame_rate
-        self.vadmodel = self.get_vad_model()
+        self.vadmodel = self._init_vad_model()
         self.vad_options: VadOptions = vad_options or VadOptions()
 
         self.in_talking:bool = False
@@ -148,15 +149,25 @@ class VadHandler:
 
         return stt_audio
 
-    def get_vad_model(self):
-        return get_silero_model()
+    def _init_vad_model(self):
+        vad_model = HumAwareVADModel()
+        return vad_model # get_silero_model()
 
     def get_threshold(self) -> float:
         """VADのしきい値を取得"""
         return self.vad_options.threshold
 
-    async def set_threshold(self, threshold:float) -> None:
+    async def set_threshold(self, threshold:float, model:str|None=None) -> None:
         """VADのしきい値を設定"""
+        if isinstance(model,str):
+            if model.lower() == "humaware" and not isinstance(self.vadmodel,HumAwareVADModel):
+                print("HumAwareVADModel")
+                self.vadmodel = HumAwareVADModel()
+                self.vadmodel.warmup()
+            elif not isinstance(self.vadmodel,SileroVADModel):
+                print("SileroVADModel")
+                self.vadmodel = get_silero_model()
+                self.vadmodel.warmup()
         if isinstance(threshold,float):
             self.vad_options.threshold = min(max(0.0,float(threshold)),1.0)
 

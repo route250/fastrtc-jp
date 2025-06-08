@@ -1,11 +1,16 @@
 
 import asyncio
+from functools import lru_cache
 import sys,os,time,re
 import random
 from datetime import datetime
 from dataclasses import dataclass
 from logging import getLogger
 from typing import AsyncGenerator, AsyncIterator, Protocol
+from fastrtc_jp.handler.agent_handler import AgentHandler
+from fastrtc_jp.handler.session import AgentSession
+from fastrtc_jp.text_to_speech.gtts import GTTSOptions
+from fastrtc_jp.text_to_speech.opt import SpkOptions
 from fastrtc_jp.utils.util import to_lang_code
 
 async def dummy_response(user_input:str, language:str='ja') -> AsyncGenerator[str,None]:
@@ -101,3 +106,75 @@ def make_dummy_response(text: str, language:str='ja') ->str:
     extra_phrase = random.choice(extras) if random.random() < 0.5 else ""
 
     return f"{random.choice(beginnings)} {random.choice(bodies)} {extra_phrase} {random.choice(closings)}"
+
+
+class DummyAgentHandler(AgentHandler):
+
+    logger = getLogger(f"{__name__}.{__qualname__}")
+
+    def __init__(self,):
+        pass
+
+    #Override
+    def copy(self) ->"AgentHandler":
+        return self
+
+    #Override
+    def reset(self):
+        pass
+
+    #Override
+    async def start_up(self):
+        pass
+
+    #Override
+    def shutdown(self):
+        pass
+
+    #Ovrride
+    @lru_cache(maxsize=1)
+    def get_profile_list(self) -> dict[str,SpkOptions]:
+        from fastrtc_jp.text_to_speech.voicevox import get_voicevox_options_list
+        from fastrtc_jp.text_to_speech.style_bert_vits2 import get_sbv2_options_list
+        from fastrtc_jp.text_to_speech.gtts import get_gtts_options_list
+        m:dict[str,SpkOptions] = {}
+        m.update(get_voicevox_options_list())
+        m.update(get_sbv2_options_list())
+        m.update(get_gtts_options_list())
+        return m
+
+    #Ovverride
+    def get_tts_options(self, profile_name:str) -> SpkOptions:
+        map = self.get_profile_list()
+        opts:SpkOptions|None = map.get(profile_name)
+        if opts is None:
+            DummyAgentHandler.logger.warning(f"get_tts_options: No options found for {profile_name}, using default.")
+            opts = GTTSOptions()
+        return opts
+
+    #Override
+    async def start_session(self, session:AgentSession, profile) -> AgentSession:
+        return session
+
+    #Override
+    async def before_run(self, session:AgentSession) -> None:
+        pass
+
+    #Override
+    async def run(self, session:AgentSession, user_input:str|None) -> AsyncGenerator[str,None]:
+        if user_input:
+            async for aa in dummy_response(user_input):
+                yield aa
+
+    #Override
+    async def commit(self, session:AgentSession, output_text:str|None, replace_text:str|None ) -> None:
+        pass
+
+    #Override
+    async def rollback(self, session:AgentSession) -> None:
+        pass
+
+    #Override
+    async def end_session(self, session:AgentSession) -> None:
+        pass
+

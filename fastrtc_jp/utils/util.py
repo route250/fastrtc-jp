@@ -1,4 +1,5 @@
 import sys,os
+from datetime import datetime
 import httpx
 from dotenv import load_dotenv as _load_dotenv
 import logging
@@ -82,3 +83,10 @@ def parse_float( value:str, default:float = 0.0) ->float:
         return float(value)
     except ValueError:
         return default
+
+def get_current_datetime_strings() -> tuple[str, str]:
+    """現在の日付と時刻を文字列として取得する"""
+    now = datetime.now()
+    datestr = now.strftime("%Y-%m-%d")
+    timestr = now.strftime("%H:%M:%S")
+    return datestr, timestr

@@ -33,57 +33,15 @@ from fastrtc_jp.handler.agent_handler import AgentSession, AgentHandler
 from fastrtc_jp.speech_to_text.sr_google import GoogleSTT
 from fastrtc_jp.text_to_speech.gtts import GTTSModel, GTTSOptions
 from fastrtc_jp.text_to_speech.opt import SpkOptions
+from fastrtc_jp.text_to_speech.tts_provider import TtsProvider
 from fastrtc_jp.handler.stream_handler import VadOptions, AsyncVoiceStreamHandler
 from fastrtc_jp.utils.util import load_dotenv, setup_logger
 from fastrtc_jp.handler.vad import VadOptions, VadHandler
 from fastrtc_jp.handler.stt_handler import SttHandler
 
-from fastrtc_jp.handler.dummy import dummy_response
+from fastrtc_jp.handler.dummy import DummyAgentHandler
 
 logger = getLogger(__name__)
-
-
-def get_tts_model(options:SpkOptions) -> TTSModel:
-    """Return a TTSModel instance.
-
-    This simple example ignores ``class_id`` and always returns ``GTTSModel``.
-    ``options`` is currently unused but kept for signature compatibility.
-    """
-    print(f"get_tts_model: class_id={options.class_id}", flush=True)
-    if options.class_id == "voicevox":
-        from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSModel
-        return VoicevoxTTSModel()
-    elif options.class_id == "sbv2":
-        from fastrtc_jp.text_to_speech.style_bert_vits2 import StyleBertVits2,SBV2_MODELS
-        return StyleBertVits2()
-    else:
-        logger.warning(f"get_tts_model: Unknown class_id {options.class_id}, using GTTSModel.")
-    return GTTSModel()
-
-
-def get_tts_options(options:SpkOptions) -> SpkOptions:
-    """Return ``SpkOptions`` for the given class.
-
-    The sample implementation converts the generic :class:`SpkOptions` into
-    :class:`GTTSOptions` used by :class:`GTTSModel`.
-    """
-    if options.class_id == "voicevox":
-        from fastrtc_jp.text_to_speech.voicevox import VoicevoxTTSOptions
-        opts = VoicevoxTTSOptions()
-        opts.speaker_id = options.speaker_id or 8  # Default to speaker ID 8 if not specified
-        return opts
-    elif options.class_id == "sbv2":
-        from fastrtc_jp.text_to_speech.style_bert_vits2 import StyleBertVits2Options
-        opts = StyleBertVits2Options()
-        opts.model = options.model
-        opts.speaker_id = options.speaker_id
-    else:
-        opts = GTTSOptions()
-    opts.lang = options.lang
-    opts.speedScale = options.speedScale
-    opts.pitchOffset = options.pitchOffset
-    return opts
-
 
 class GoogleSttHandler(SttHandler):
     def __init__(self,):
@@ -103,7 +61,7 @@ class GoogleSttHandler(SttHandler):
 
     #Override
     def is_wakeup(self,contents:list[str]) -> bool:
-        wakeup_words = ["おはよう", "こんにちは", "こんばんは"]
+        wakeup_words = [ "おはよう", "こんにちは", "こんばんは"]
         for stt_result in contents:
             if any(w in stt_result for w in wakeup_words):
                 print(f"GoogleSttHandler: is_wakeup: {contents} True",flush=True)
@@ -111,105 +69,39 @@ class GoogleSttHandler(SttHandler):
         print(f"GoogleSttHandler: is_wakeup: {contents} False",flush=True)
         return False
 
-class DummyDriver(AgentHandler):
-    def __init__(self,):
-        pass
-
-    #Override
-    def copy(self) ->"AgentHandler":
-        return self
-
-    #Override
-    def reset(self):
-        pass
-
-    #Override
-    async def start_up(self):
-        pass
-
-    #Override
-    def shutdown(self):
-        pass
-
-    #Ovrride
-    @lru_cache(maxsize=1)
-    def get_profile_list(self) -> dict[str,SpkOptions]:
-        from fastrtc_jp.text_to_speech.voicevox import get_voicevox_options_list
-        from fastrtc_jp.text_to_speech.style_bert_vits2 import get_sbv2_options_list
-        from fastrtc_jp.text_to_speech.gtts import get_gtts_options_list
-        m:dict[str,SpkOptions] = {}
-        m.update(get_voicevox_options_list())
-        m.update(get_sbv2_options_list())
-        m.update(get_gtts_options_list())
-        return m
-
-    #Ovverride
-    def get_tts_options(self, profile_name:str) -> SpkOptions:
-        map = self.get_profile_list()
-        opts:SpkOptions|None = map.get(profile_name)
-        if opts is None:
-            logger.warning(f"get_tts_options: No options found for {profile_name}, using default.")
-            opts = GTTSOptions()
-        return opts
-
-    #Override
-    async def start_session(self, session:AgentSession, profile) -> AgentSession:
-        return session
-
-    #Override
-    async def before_run(self, session:AgentSession) -> None:
-        pass
-
-    #Override
-    async def run(self, session:AgentSession, user_input:str|None) -> AsyncGenerator[str,None]:
-        if user_input:
-            async for aa in dummy_response(user_input):
-                yield aa
-
-    #Override
-    async def commit(self, session:AgentSession, output_text:str|None, replace_text:str|None ) -> None:
-        pass
-
-    #Override
-    async def rollback(self, session:AgentSession) -> None:
-        pass
-
-    #Override
-    async def end_session(self, session:AgentSession) -> None:
-        pass
-
-
 def test_speech_gr():
     loggerx = getLogger("handler.speech_handler")
     loggerx.setLevel("DEBUG")
 
-    agent_hdr = DummyDriver()
+    agent_hdr = DummyAgentHandler()
     profile_list = list(agent_hdr.get_profile_list().keys())
 
     with gr.Blocks(fill_height=True,fill_width=True) as demo:
-        gr.HTML(
-        """
-        <h1 style='text-align: center'>
-        Talk to Sample (Powered by WebRTC ⚡️)
-        </h1>
-        """
-        )
 
-        with gr.Row(variant='panel'):
-            with gr.Column(scale=1):
-                with gr.Row(scale=15):
+        with gr.Row():
+            with gr.Column():
+                with gr.Tab("Debug"):
                     dmydata = gr.JSON(label="debug")
-                with gr.Row(scale=1):
-                    dropdown = gr.Dropdown(
-                        label="Options",
+                with gr.Tab("Debug"):
+                    profile = gr.Dropdown(
+                        label=None,
                         choices=profile_list,
                         value=profile_list[0]
                     )
-                with gr.Row(scale=1):
-                    slider = gr.Slider(minimum=0.0, maximum=1.0, value=0.5, step=0.1, label="Threshold")
-                with gr.Row(scale=1):
-                    audio = WebRTC(label="Stream",mode="send-receive", modality="audio" )
+                    vad_model = gr.Dropdown( label="VAD Model",
+                        choices=["silero","humaware"],
+                        value="silero",
+                    )
+                    vad_value = gr.Slider( label="Threshold", maximum=1.0, value=0.5, step=0.1)
+                audio = WebRTC(label="Stream",mode="send-receive", modality="audio" )
             with gr.Column(scale=3):
+                gr.HTML(
+                    """
+                    <h1 style='text-align: center'>
+                    Talk to Sample (Powered by WebRTC ⚡️)
+                    </h1>
+                    """
+                )
                 chat_area = gr.Chatbot(label="chat", type="messages")
 
         algo_options = VadOptions(
@@ -222,11 +114,10 @@ def test_speech_gr():
             AsyncVoiceStreamHandler(
                 GoogleSttHandler(),
                 agent_hdr,
-                get_tts_model_fn=get_tts_model,
-                get_tts_options_fn=get_tts_options,
                 vad_options=algo_options,
+                tts_provider=TtsProvider,
             ),
-            inputs=[audio,dropdown,slider],
+            inputs=[audio,profile,vad_value,vad_model],
             outputs=[audio],
             time_limit=None,
         )
@@ -244,8 +135,7 @@ def test_speech_gr():
                                 content = m.get('content')
                                 if role and content:
                                     hist.append( ChatMessage(role=role,content=content))
-                        datestr = datetime.now().strftime("%Y-%m-%d")
-                        timestr = datetime.now().strftime("%H:%M:%S")
+
                     return status,hist
             except Exception as ex:
                 print(f"ERROR:{ex}",flush=True)

@@ -13,12 +13,10 @@ from numpy.typing import NDArray
 
 from fastrtc import AsyncStreamHandler, AdditionalOutputs
 from fastrtc.tracks import EmitType
-from fastrtc.text_to_speech.tts import TTSModel, TTSOptions
 
 from fastrtc_jp.handler.agent_handler import AgentHandler
 from fastrtc_jp.handler.service import STTService, TTSService
 from fastrtc_jp.handler.voice import SttAudio, SttAudioBuffer, TtsAudio
-from fastrtc_jp.speech_to_text.util import resample_audio
 
 from fastrtc_jp.handler.vad import VadOptions, VadHandler
 from fastrtc_jp.handler.stt_handler import SttHandler
@@ -26,6 +24,7 @@ from fastrtc_jp.handler.agent_task import AgentTask
 from fastrtc_jp.handler.emit import EmitManager
 from fastrtc_jp.handler.session import AgentMessage, AgentSession
 from fastrtc_jp.text_to_speech.opt import SpkOptions
+from fastrtc_jp.text_to_speech.tts_provider import TtsProvider
 
 def clear_queue(q:asyncio.Queue):
     try:
@@ -112,12 +111,9 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
         stt_hdr: SttHandler,
         agent_hdr: AgentHandler,
         *,
-        #vad_fn:Callable[[bool,int,NDArray[np.int16]|NDArray[np.float32],AlgoOptions,Any],bool],
-        get_tts_model_fn:Callable[[SpkOptions], TTSModel],
-        get_tts_options_fn:Callable[[SpkOptions],SpkOptions],
+        tts_provider:Type[TtsProvider],
         vad_hdr:VadHandler|None=None,
         vad_options:VadOptions|None = None,
-        # wakeup_words:list[str]|None=None
     ):
         """初期化"""
         super().__init__(
@@ -151,9 +147,8 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
 
         self._stt_service:STTService = STTService(stt_hdr.get_stt_model)
 
-        self.get_tts_model_fn = get_tts_model_fn
-        self.get_tts_options_fn = get_tts_options_fn
-        self._tts_service:TTSService = TTSService(get_tts_model_fn,get_tts_options_fn)
+        self.tts_provider = tts_provider
+        self._tts_service:TTSService = TTSService(tts_provider)
 
         self._task_list:list[asyncio.Task] = []
 
@@ -216,8 +211,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                 self.stt_hdr.copy(),
                 self.agent_hdr.copy(),
                 vad_options = self.vad_options,
-                get_tts_model_fn=self.get_tts_model_fn,
-                get_tts_options_fn=self.get_tts_options_fn,
+                tts_provider = self.tts_provider,
             )
         except:
             self.logger.exception("can not copy instance")
@@ -330,15 +324,17 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     async def set_profile(self, profile:str):
         self.agent_profile.set_value(profile)
 
-    async def set_threshold(self, threshold:float):
+    async def set_threshold(self, threshold:float, vad_model:str|None=None):
         if self.vad_hdr:
-            await self.vad_hdr.set_threshold(threshold)
+            await self.vad_hdr.set_threshold(threshold, vad_model)
 
     async def handle_args(self, args:tuple|list):
         print(f"[args] {args}")
         if len(args)>=1 and isinstance(args[0],str):
             await self.set_profile(args[0])
-        if len(args)>=2:
+        if len(args)>=3:
+            await self.set_threshold(args[1],args[2])
+        elif len(args)>=2:
             await self.set_threshold(args[1])
     
     async def _fn_task_args(self):
