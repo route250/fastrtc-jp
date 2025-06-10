@@ -370,8 +370,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
     async def new_session(self) ->AgentSession:
         if self.session is None:
             print(f"### new session")
-            self.session = AgentSession(self.agent_id, self.session_id, self.user_id)
-            self.session = await self.agent_hdr.start_session(self.session, self.agent_profile.value)
+            self.session = await self.agent_hdr.start_session(self.agent_id, self.session_id, self.agent_id, self.agent_profile.value)
         return self.session
 
     async def _fn_task_timer(self):
@@ -431,7 +430,7 @@ class AsyncVoiceStreamHandler(AsyncStreamHandler):
                                 self.set_stat(HdrStat.Wait)
                         buffer_data.append(nx_stt_audio)
 
-                        messages = self.session.get_messages() if self.session else []
+                        messages = await self.session.get_messages() if self.session else []
                         messages += buffer_data.to_messages()
                         await self.emit_manager.ads( AdditionalOutputs([],messages))
                         # listen mode switch

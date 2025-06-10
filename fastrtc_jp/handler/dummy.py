@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import AsyncGenerator, AsyncIterator, Protocol
 from fastrtc_jp.handler.agent_handler import AgentHandler
-from fastrtc_jp.handler.session import AgentSession
+from fastrtc_jp.handler.session import AgentSession, AgentSessionABC
 from fastrtc_jp.text_to_speech.gtts import GTTSOptions
 from fastrtc_jp.text_to_speech.opt import SpkOptions
 from fastrtc_jp.utils.util import to_lang_code
@@ -131,30 +131,9 @@ class DummyAgentHandler(AgentHandler):
     def shutdown(self):
         pass
 
-    #Ovrride
-    @lru_cache(maxsize=1)
-    def get_profile_list(self) -> dict[str,SpkOptions]:
-        from fastrtc_jp.text_to_speech.voicevox import get_voicevox_options_list
-        from fastrtc_jp.text_to_speech.style_bert_vits2 import get_sbv2_options_list
-        from fastrtc_jp.text_to_speech.gtts import get_gtts_options_list
-        m:dict[str,SpkOptions] = {}
-        m.update(get_voicevox_options_list())
-        m.update(get_sbv2_options_list())
-        m.update(get_gtts_options_list())
-        return m
-
-    #Ovverride
-    def get_tts_options(self, profile_name:str) -> SpkOptions:
-        map = self.get_profile_list()
-        opts:SpkOptions|None = map.get(profile_name)
-        if opts is None:
-            DummyAgentHandler.logger.warning(f"get_tts_options: No options found for {profile_name}, using default.")
-            opts = GTTSOptions()
-        return opts
-
     #Override
-    async def start_session(self, session:AgentSession, profile) -> AgentSession:
-        return session
+    async def start_session(self, agent_id:str, user_id:str, session_id:str, profile) -> AgentSession:
+        return AgentSessionABC(agent_id,user_id,session_id)
 
     #Override
     async def before_run(self, session:AgentSession) -> None:
