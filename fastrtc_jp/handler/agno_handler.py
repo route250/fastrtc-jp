@@ -18,10 +18,12 @@ from agno.memory.v2.memory import Memory
 from agno.memory.v2.db.sqlite import SqliteMemoryDb
 from agno.memory.agent import AgentRun
 from agno.models.openai import OpenAIChat
+from agno.models.lmstudio import LMStudio
 from agno.models.message import Message
 from agno.run.response import RunEvent
 from agno.storage.sqlite import SqliteStorage
 from agno.storage.session.agent import AgentSession as agno_AgentSession
+from agno.exceptions import ModelProviderError
 
 from logging import getLogger
 logger = getLogger(__name__)
@@ -31,16 +33,20 @@ def make_agent( *, db_file:str|None = None, agent_id:str|None=None, session_id:s
     db_memory = None
     db_storage = None
     if db_file:
+        # dbmdl = LMStudio(id="phi-4-mini-instruct")
+        dbmdl = OpenAIChat(id="gpt-4.1-nano")
         db_memory = Memory(
-            model=OpenAIChat(id="gpt-4.1-nano"),
+            model=dbmdl,
             db=SqliteMemoryDb(table_name="user_memories", db_file=db_file),
         )
         db_storage=SqliteStorage(table_name="agent_sessions", db_file=db_file)
 
+    # mdl = LMStudio(id="qwen3-4b-128k")
+    mdl = OpenAIChat(id="gpt-4o-mini")
     agent = Agent(
         agent_id=agent_id,
         session_id=session_id,
-        model=OpenAIChat(id="gpt-4o-mini"),
+        model=mdl,
         memory=db_memory,
         storage=db_storage,
         add_history_to_messages=True,
@@ -50,41 +56,57 @@ def make_agent( *, db_file:str|None = None, agent_id:str|None=None, session_id:s
     )
     return agent
 
-def update_message( message:Message|None,a,b):
+def update_message( message:Message|None,a,b) ->bool:
+    if a is None or a==b:
+        return True
     if isinstance(message,Message):
         if message.content==a:
             print(f"    update_message {a} -> {b}")
-            message.content=b
+            message.content=b or ""
+            return True
+    return False
 
-def update_message_list( messages: list[Message]|None, a,b ):
-    if isinstance(messages,list):
-        for m in messages:
-            update_message(m,a,b)
-
-def update_run_response(run_res:RunResponse|TeamRunResponse, a:str, b:str):
-    if isinstance(run_res,RunResponse):
-        if( run_res.content == a ):
-            run_res.content = b
-            update_message_list(run_res.messages,a,b)
-
-def update_agent_runs(agent:Agent|None, a, b):
-    if agent is None or agent.session_id is None:
-        return
+def update_message_list( messages: list[Message]|None, a,b ) ->bool:
     if a is None or a==b:
-        return
+        return True
+    if isinstance(messages,list):
+        for m in reversed(messages):
+            if update_message(m,a,b):
+                return True
+    return False
+
+def update_run_response(run_res:RunResponse|TeamRunResponse, a:str, b:str) ->bool:
+    if a is None or a==b:
+        return True
+    if isinstance(run_res,RunResponse|TeamRunResponse):
+        if run_res.content == a:
+            if update_message_list(run_res.messages,a,b):
+                run_res.content = b
+                return True
+    return False
+
+def update_agent_runs(agent:Agent|None, a, b) ->bool:
+    if a is None or a==b:
+        return True
+    if agent is None or agent.session_id is None:
+        return False
+    ses:agno_AgentSession|None = None
+    if agent.storage:
+        ss = agent.storage.read(session_id=agent.session_id)
+        if isinstance(ss, agno_AgentSession) and ss.memory:
+            msglist:list[dict[str,Any]] = ss.memory.get('runs',[{'messages':[]}])[-1]['messages']
+            if len(msglist)>0 and msglist[-1]['role'] == 'assistant':
+                print(f"    update_storage {a} -> {b}")
+                msglist[-1]['content'] = b
+                ses = ss
     if isinstance(agent.memory ,Memory):
         if isinstance(agent.memory.runs ,dict):
             runs = agent.memory.runs.get(agent.session_id)
             if isinstance(runs, list) and len(runs)>0:
-                update_run_response(runs[-1],a,b)
-    if agent.storage:
-        ss = agent.storage.read(session_id=agent.session_id)
-        if isinstance(ss, agno_AgentSession) and ss.memory:
-            mm:list[dict[str,Any]] = ss.memory.get('runs',[{'messages':[]}])[-1]['messages']
-            if len(mm)>0 and mm[-1]['role'] == 'assistant':
-                print(f"    update_storage {a} -> {b}")
-                mm[-1]['content'] = b
-                agent.storage.upsert(ss)
+                if update_run_response(runs[-1],a,b):
+                    if ses is not None and agent.storage:
+                        agent.storage.upsert(ses)
+    return False
 
 def rollback_agent_last_run(agent:Agent|None):
     if agent is None or agent.session_id is None:
@@ -226,13 +248,18 @@ class AgnoHander(AgentHandler):
         print("-------------------")
         print(f"input:{user_input}")
         ai_response = ""
-        res_itr = agent.run( user_input, stream=True)
-        session._pull_id()  # Ensure agent_id and session_id are set
-        for run_res in res_itr:
-            if run_res.event==RunEvent.run_response:
-                delta:str = str(run_res.content)
-                ai_response += delta
-                yield delta
+        try:
+            res_itr = agent.run( user_input, stream=True)
+            session._pull_id()  # Ensure agent_id and session_id are set
+            for run_res in res_itr:
+                if run_res.event==RunEvent.run_response:
+                    delta:str = str(run_res.content)
+                    ai_response += delta
+                    yield delta
+        except ModelProviderError as ex:
+            logger.error(f"ModelProviderError: {ex}")
+            yield f"Error: {ex}"
+
         print(f"AI response: {ai_response}")
 
     async def commit(self, session:AgentSession, output_text:str|None, replace_text:str|None ) -> None:
@@ -257,7 +284,7 @@ async def test_main():
     profile = "default"
 
     session_list = ["normal-session","replace_session","rollback_session"]
-    input_list = ("こんにちは","今日は何日？","さっきなんて言ったの？")
+    input_list = ("こんにちは","あなたの名前は？","さっきなんて言ったの？")
     for s, test_id in enumerate(session_list):
         print(f"----\n Test ID: {test_id}\n ----")
         session_id = f"ses_{test_id}"
@@ -275,7 +302,7 @@ async def test_main():
                         ai_response += run_res
                     if i==1:
                         if s==1:
-                            await hdr.commit(ses,ai_response,"あいうえお")
+                            await hdr.commit(ses,ai_response,"とんこつラーメンです。")
                         elif s==2:
                             await hdr.rollback(ses)
                     else:
